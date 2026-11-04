@@ -1,69 +1,45 @@
-# Performance Overlay (Windows / WPF)
+# PerformanceOverlay
 
-A lightweight Windows performance overlay for CPU, GPU, RAM and FPS monitoring.
+Ein Windows-Overlay, das wichtige Leistungsdaten deines PCs während des Spielens oder Arbeitens sichtbar macht.
 
-## Requirements
-- Windows 10/11 x64
-- .NET 8 SDK
-- `PresentMon.exe` (x64) next to the application for FPS capture
-- The distributed installer can bundle PresentMon beside the application
+## Was das Overlay anzeigt
 
-## Build
-Run these commands in the folder containing `PerformanceOverlay.csproj`:
+- **FPS:** aktuelle durchschnittliche Bildrate sowie höchster und niedrigster Wert der laufenden Sitzung
+- **CPU:** Auslastung und Temperatur, sofern dein System die Sensorwerte bereitstellt
+- **GPU:** Auslastung und Temperatur, sofern dein System die Sensorwerte bereitstellt
+- **RAM:** aktuelle Arbeitsspeicherauslastung
 
-```powershell
-dotnet clean
-Remove-Item -Recurse -Force bin,obj -ErrorAction SilentlyContinue
-dotnet restore
-dotnet build -c Release
-```
+Nicht verfügbare Messwerte werden ausgeblendet. Der grüne Punkt zeigt an, dass Sensordaten verfügbar sind. Bleiben Messwerte länger als fünf Minuten aus, blendet das Overlay sie wieder aus.
 
-Publish a standalone executable:
+## Installation
 
-```powershell
-dotnet publish -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true
-```
+Lade unter **Releases** die Datei `PerformanceOverlay-Setup-x64.exe` herunter und starte sie. Die Setup-Datei installiert die Anwendung und enthält die benötigten Komponenten einschließlich PresentMon. Du musst **weder das .NET-Runtime/SDK noch PresentMon separat installieren**.
 
-Copy the x64 PresentMon console executable into the publish folder beside `PerformanceOverlay.exe` and name it `PresentMon.exe`.
+Die Installation fragt über die Windows-Benutzerkontensteuerung nach Administratorrechten. Die Anwendung benötigt erhöhte Rechte für ihre Hardware- und FPS-Erfassung. Das Setup richtet außerdem den automatischen Start bei der Windows-Anmeldung für das installierende Konto ein. Dafür muss dieses Konto Administratorrechte besitzen.
 
-## System tray
-- Show overlay / Hide overlay
-- Overlay color: Red, Green, Blue, Turquoise, Orange, Black, White
-- Overlay position: Left, Center, Right (top edge of the primary display)
-- Reload everything: restarts hardware sensor initialization and PresentMon, resets FPS min/max and refreshes metric visibility
-- Configure hotkeys: customize the shortcuts for FPS reset, exit and full reload
-- Help: explains the FPS, CPU, GPU, RAM, availability-dot and reload-border indicators
-- Exit
+## Verwendung
 
-The selected color, overlay position and custom hotkeys are saved in `%APPDATA%\PerformanceOverlay\settings.json`.
+Nach der Installation startet das Overlay automatisch bei der Anmeldung. Das Overlay bleibt über anderen Fenstern am oberen Rand des Bildschirms. Über das Symbol im Infobereich der Taskleiste erreichst du die Einstellungen:
 
-Default hotkeys:
-- `Ctrl + Shift + R`: Reset FPS max/min
-- `Ctrl + Alt + Q`: Exit overlay
-- `Ctrl + Alt + L`: Reload everything
+- **Show overlay / Hide overlay:** Overlay ein- oder ausblenden
+- **Overlay position:** oben links, mittig oder rechts platzieren
+- **Overlay color:** Akzentfarbe auswählen
+- **Configure hotkeys:** Tastenkürzel anpassen
+- **Reload everything:** Sensoren und FPS-Erfassung neu starten und die FPS-Minimal- und Maximalwerte zurücksetzen
+- **Exit:** Anwendung beenden
 
-If a hotkey is already used by another program, it will not be registered. Choose a different combination in the tray menu.
+Standard-Tastenkürzel:
 
-## Overlay position
-Choose Left, Center or Right from the tray menu. The overlay stays near the top edge and the selected position is remembered after restarting the application.
+- `Ctrl + Shift + R`: FPS-Minimum und -Maximum zurücksetzen
+- `Ctrl + Alt + Q`: Anwendung beenden
+- `Ctrl + Alt + L`: alles neu laden
 
-## Activity animations
-- Purple moving border segment: full overlay reload in progress
-- Green moving border segment: waiting for the first FPS data from PresentMon
-- The green animation stops when FPS data arrives, or after 12 seconds if no data is received
+Falls ein Tastenkürzel bereits von einem anderen Programm verwendet wird, kann es nicht registriert werden. Weise ihm im Taskleistenmenü ein anderes Kürzel zu.
 
-## Sensor availability
-Unavailable metrics are hidden. When new sensor data arrives, a green availability dot indicates that metrics are ready. A metric is hidden again after five minutes without fresh readings.
+Die gewählte Position, Farbe und Tastenkürzel werden in `%APPDATA%\PerformanceOverlay\settings.json` gespeichert.
 
-LibreHardwareMonitor supplies CPU/GPU sensors and Windows memory status supplies RAM usage. Sensor availability depends on hardware, firmware, drivers and permissions. PresentMon supplies FPS data.
+## Wie die Messung funktioniert
 
+Das Overlay liest CPU- und GPU-Sensoren über LibreHardwareMonitor aus und ermittelt die RAM-Auslastung über Windows. PresentMon erfasst die Bildrate unterstützter Anwendungen. Die Verfügbarkeit einzelner Sensorwerte hängt von Hardware, Firmware, Treibern und Berechtigungen ab. Deshalb können einzelne Werte auf manchen Systemen fehlen.
 
-## Overlay positions
-Use the system tray menu **Overlay position** to choose **Top Left**, **Top Center**, or **Top Right**. The overlay remains aligned to the top edge of the Windows work area, and the selected position is saved between launches.
-
-
-On exit, the overlay displays **Made by LeoCvier** for five seconds, then uses the existing closing wipe animation.
-
-
-## Installer packaging
-See `INSTALLER-README.md` and `Build-Installer.ps1` for the Windows x64 installer build. The installer requests administrator approval, registers elevated logon autostart, and removes that task on uninstall. A compatible x64 PresentMon console binary must be placed in `Dependencies\PresentMon.exe` before building.
+Die FPS-Anzeige enthält den aktuellen Durchschnitt sowie Minimum und Maximum seit dem letzten Zurücksetzen oder Neustart der Anwendung. Beim Start der FPS-Erfassung zeigt ein grüner animierter Rahmen an, dass auf die ersten Daten gewartet wird. Ein violetter Rahmen zeigt an, dass gerade **Reload everything** ausgeführt wird.
