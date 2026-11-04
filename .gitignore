@@ -1,0 +1,16 @@
+# Build outputs
+[Bb]in/
+[Oo]bj/
+[Pp]ublish/
+[Oo]utput/
+
+# Local dependencies and tooling
+Dependencies/
+.vs/
+*.user
+*.suo
+
+# IDE and OS files
+.vscode/
+.DS_Store
+Thumbs.db
