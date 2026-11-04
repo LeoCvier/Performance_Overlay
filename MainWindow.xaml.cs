@@ -56,6 +56,7 @@ public partial class MainWindow : Window
     private Forms.ToolStripMenuItem? _pluginMenu;
     private readonly OverlayPluginManager _pluginManager = new();
     private readonly List<LoadedOverlayPlugin> _loadedPlugins = new();
+    private readonly Dictionary<LoadedOverlayPlugin, FrameworkElement> _pluginContainers = new();
     private readonly List<string> _pluginLoadErrors = new();
 
     private readonly Computer _computer = new()
@@ -361,11 +362,11 @@ public partial class MainWindow : Window
             var item = new Forms.ToolStripMenuItem(plugin.Instance.Name)
             {
                 CheckOnClick = true,
-                Checked = plugin.View.Visibility == Visibility.Visible,
+                Checked = _pluginContainers[plugin].Visibility == Visibility.Visible,
                 ToolTipText = plugin.Instance.Description
             };
             item.CheckedChanged += (_, _) =>
-                plugin.View.Visibility = item.Checked ? Visibility.Visible : Visibility.Collapsed;
+                _pluginContainers[plugin].Visibility = item.Checked ? Visibility.Visible : Visibility.Collapsed;
             _pluginMenu.DropDownItems.Add(item);
         }
 
@@ -454,9 +455,23 @@ public partial class MainWindow : Window
             return;
 
         var plugin = _pluginManager.Load(assemblyPath);
-        plugin.View.Margin = new Thickness(8, 0, 0, 0);
+        var container = new StackPanel
+        {
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        container.Children.Add(new TextBlock
+        {
+            Text = "  │  ",
+            Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(170, 176, 184)),
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        plugin.View.Margin = new Thickness(0);
+        plugin.View.VerticalAlignment = VerticalAlignment.Center;
+        container.Children.Add(plugin.View);
         _loadedPlugins.Add(plugin);
-        OverlayContent.Children.Add(plugin.View);
+        _pluginContainers.Add(plugin, container);
+        OverlayContent.Children.Add(container);
         UpdateLayout();
         ApplyOverlayPosition();
     }
@@ -548,6 +563,7 @@ public partial class MainWindow : Window
     private void SetAccentColor(System.Windows.Media.Color color)
     {
         _accentColor = color;
+        Resources[OverlayTheme.AccentBrushKey] = new SolidColorBrush(color);
         foreach (var metric in _metrics.Values)
             if (metric.Block.Tag is string value && !string.IsNullOrEmpty(value))
                 SetText(metric.Block, metric.Label, value);
@@ -1330,6 +1346,7 @@ public partial class MainWindow : Window
             catch { }
         }
         _loadedPlugins.Clear();
+        _pluginContainers.Clear();
 
         if (_trayIcon is not null)
         {

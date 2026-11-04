@@ -10,10 +10,16 @@ public sealed class ClockPlugin : IOverlayPlugin
 {
     private readonly TextBlock _view = new()
     {
-        Foreground = Brushes.White,
-        FontSize = 14,
-        FontWeight = FontWeights.SemiBold,
         VerticalAlignment = VerticalAlignment.Center
+    };
+    private readonly System.Windows.Documents.Run _label = new("TIME ")
+    {
+        FontWeight = FontWeights.SemiBold
+    };
+    private readonly System.Windows.Documents.Run _time = new()
+    {
+        Foreground = Brushes.White,
+        FontWeight = FontWeights.SemiBold
     };
 
     private readonly DispatcherTimer _timer = new()
@@ -23,6 +29,8 @@ public sealed class ClockPlugin : IOverlayPlugin
 
     public ClockPlugin()
     {
+        _view.Inlines.Add(_label);
+        _view.Inlines.Add(_time);
         _timer.Tick += UpdateClock;
         UpdateClock(this, EventArgs.Empty);
         _timer.Start();
@@ -31,7 +39,13 @@ public sealed class ClockPlugin : IOverlayPlugin
     public string Name => "Clock";
     public string Description => "Displays the local time in 24-hour format.";
 
-    public FrameworkElement CreateView() => _view;
+    public FrameworkElement CreateView()
+    {
+        _label.SetResourceReference(
+            System.Windows.Documents.TextElement.ForegroundProperty,
+            OverlayTheme.AccentBrushKey);
+        return _view;
+    }
 
     public void Dispose()
     {
@@ -41,6 +55,6 @@ public sealed class ClockPlugin : IOverlayPlugin
 
     private void UpdateClock(object? sender, EventArgs e)
     {
-        _view.Text = $"TIME {DateTime.Now:HH:mm:ss}";
+        _time.Text = DateTime.Now.ToString("HH:mm:ss");
     }
 }
