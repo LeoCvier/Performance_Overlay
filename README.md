@@ -1,45 +1,45 @@
 # PerformanceOverlay
 
-Ein Windows-Overlay, das wichtige Leistungsdaten deines PCs während des Spielens oder Arbeitens sichtbar macht.
+A Windows overlay that keeps important PC performance metrics visible while you play or work.
 
-## Was das Overlay anzeigt
+## What it shows
 
-- **FPS:** aktuelle durchschnittliche Bildrate sowie höchster und niedrigster Wert der laufenden Sitzung
-- **CPU:** Auslastung und Temperatur, sofern dein System die Sensorwerte bereitstellt
-- **GPU:** Auslastung und Temperatur, sofern dein System die Sensorwerte bereitstellt
-- **RAM:** aktuelle Arbeitsspeicherauslastung
+- **FPS:** current average frame rate and the highest and lowest values for the current session
+- **CPU:** utilization and temperature, when reported by your system
+- **GPU:** utilization and temperature, when reported by your system
+- **RAM:** current memory usage
 
-Nicht verfügbare Messwerte werden ausgeblendet. Der grüne Punkt zeigt an, dass Sensordaten verfügbar sind. Bleiben Messwerte länger als fünf Minuten aus, blendet das Overlay sie wieder aus.
+Unavailable metrics are hidden. A green dot indicates that sensor data is available. Metrics are hidden again if no fresh readings arrive for more than five minutes.
 
 ## Installation
 
-Lade unter **Releases** die Datei `PerformanceOverlay-Setup-x64.exe` herunter und starte sie. Die Setup-Datei installiert die Anwendung und enthält die benötigten Komponenten einschließlich PresentMon. Du musst **weder das .NET-Runtime/SDK noch PresentMon separat installieren**.
+Download `PerformanceOverlay-Setup-x64.exe` from **Releases** and run it. The setup installs the application and includes the required components, including PresentMon. You do **not** need to install the .NET runtime/SDK or PresentMon separately.
 
-Die Installation fragt über die Windows-Benutzerkontensteuerung nach Administratorrechten. Die Anwendung benötigt erhöhte Rechte für ihre Hardware- und FPS-Erfassung. Das Setup richtet außerdem den automatischen Start bei der Windows-Anmeldung für das installierende Konto ein. Dafür muss dieses Konto Administratorrechte besitzen.
+Windows User Account Control will ask for administrator approval during installation. The application also runs with elevated permissions for hardware and FPS capture. The setup configures the application to start automatically when the installing Windows account signs in. That account must have administrator privileges for elevated startup.
 
-## Verwendung
+## How to use it
 
-Nach der Installation startet das Overlay automatisch bei der Anmeldung. Das Overlay bleibt über anderen Fenstern am oberen Rand des Bildschirms. Über das Symbol im Infobereich der Taskleiste erreichst du die Einstellungen:
+After installation, the overlay starts automatically when you sign in. It stays above other windows along the top edge of the screen. Use the icon in the Windows notification area to access these options:
 
-- **Show overlay / Hide overlay:** Overlay ein- oder ausblenden
-- **Overlay position:** oben links, mittig oder rechts platzieren
-- **Overlay color:** Akzentfarbe auswählen
-- **Configure hotkeys:** Tastenkürzel anpassen
-- **Reload everything:** Sensoren und FPS-Erfassung neu starten und die FPS-Minimal- und Maximalwerte zurücksetzen
-- **Exit:** Anwendung beenden
+- **Show overlay / Hide overlay:** show or hide the overlay
+- **Overlay position:** place it at the top left, top center, or top right
+- **Overlay color:** choose an accent color
+- **Configure hotkeys:** change the keyboard shortcuts
+- **Reload everything:** restart the sensors and FPS capture, and reset the session's minimum and maximum FPS
+- **Exit:** close the application
 
-Standard-Tastenkürzel:
+Default hotkeys:
 
-- `Ctrl + Shift + R`: FPS-Minimum und -Maximum zurücksetzen
-- `Ctrl + Alt + Q`: Anwendung beenden
-- `Ctrl + Alt + L`: alles neu laden
+- `Ctrl + Shift + R`: reset minimum and maximum FPS
+- `Ctrl + Alt + Q`: exit the application
+- `Ctrl + Alt + L`: reload everything
 
-Falls ein Tastenkürzel bereits von einem anderen Programm verwendet wird, kann es nicht registriert werden. Weise ihm im Taskleistenmenü ein anderes Kürzel zu.
+If another program is already using a hotkey, it cannot be registered. Choose a different combination in the notification area menu.
 
-Die gewählte Position, Farbe und Tastenkürzel werden in `%APPDATA%\PerformanceOverlay\settings.json` gespeichert.
+The selected position, color, and hotkeys are saved in `%APPDATA%\PerformanceOverlay\settings.json`.
 
-## Wie die Messung funktioniert
+## How monitoring works
 
-Das Overlay liest CPU- und GPU-Sensoren über LibreHardwareMonitor aus und ermittelt die RAM-Auslastung über Windows. PresentMon erfasst die Bildrate unterstützter Anwendungen. Die Verfügbarkeit einzelner Sensorwerte hängt von Hardware, Firmware, Treibern und Berechtigungen ab. Deshalb können einzelne Werte auf manchen Systemen fehlen.
+The overlay reads CPU and GPU sensors through LibreHardwareMonitor and gets RAM usage from Windows. PresentMon captures the frame rate of supported applications. Sensor availability depends on your hardware, firmware, drivers, and permissions, so some metrics may not be available on every system.
 
-Die FPS-Anzeige enthält den aktuellen Durchschnitt sowie Minimum und Maximum seit dem letzten Zurücksetzen oder Neustart der Anwendung. Beim Start der FPS-Erfassung zeigt ein grüner animierter Rahmen an, dass auf die ersten Daten gewartet wird. Ein violetter Rahmen zeigt an, dass gerade **Reload everything** ausgeführt wird.
+The FPS display shows the current average and the minimum and maximum since the last reset or application restart. A green animated border appears while FPS capture is waiting for its first data. A purple border appears while **Reload everything** is running.
