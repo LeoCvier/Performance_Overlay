@@ -46,3 +46,5 @@ The overlay reads CPU and GPU sensors through LibreHardwareMonitor and gets RAM 
 The FPS display shows the current average and the minimum and maximum since the last reset or application restart. A green animated border appears while FPS capture is waiting for its first data. A purple border appears while **Reload everything** is running.
 
 Plugins are stored under `%LOCALAPPDATA%\PerformanceOverlay\Plugins` and load automatically when the application starts. See [PLUGINS.md](PLUGINS.md) for the plugin interface and installation details.
+
+The first included plugin adds a live 24-hour local clock to the overlay. Build it with `dotnet build Plugins\ClockPlugin\ClockPlugin.csproj -c Release`, then select `Plugins\ClockPlugin\bin\Release\net8.0-windows\ClockPlugin.dll` from **Plugins → Load plugin…**.

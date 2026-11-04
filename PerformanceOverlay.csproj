@@ -15,6 +15,7 @@
   <ItemGroup>
     <ProjectReference Include="PluginApi\PerformanceOverlay.PluginApi.csproj" />
     <Compile Remove="PluginApi\**\*.cs" />
+    <Compile Remove="Plugins\**\*.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="app.ico" CopyToOutputDirectory="PreserveNewest" />

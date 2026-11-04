@@ -38,3 +38,13 @@ public sealed class ExamplePlugin : IOverlayPlugin
 ```
 
 Build the plugin and select its main DLL from the build output folder. The plugin loader copies the DLL and dependency files into its own folder. `CreateView()` should return a WPF element sized to fit the horizontal overlay. Use `Dispose()` to stop timers or release resources when the application exits.
+
+## Included clock plugin
+
+The repository includes a clock plugin that displays the local time in 24-hour format and refreshes once per second. Build it from the repository root:
+
+```powershell
+dotnet build Plugins\ClockPlugin\ClockPlugin.csproj -c Release
+```
+
+Then choose `Plugins\ClockPlugin\bin\Release\net8.0-windows\ClockPlugin.dll` from **Plugins → Load plugin…**. The app copies the plugin and its dependencies into the per-user plugin folder.
