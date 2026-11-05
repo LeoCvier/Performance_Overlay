@@ -32,6 +32,7 @@ public partial class MainWindow : Window
     private const uint ModShift = 0x0004;
     private const uint ModWin = 0x0008;
     private const int WmHotkey = 0x0312;
+    private const string PluginCatalogUrl = "https://github.com/LeoCvier/Performance-Overlay-Plugins";
 
     private sealed class HotkeyBinding
     {
@@ -348,6 +349,8 @@ public partial class MainWindow : Window
         if (_pluginMenu is null) return;
         _pluginMenu.DropDownItems.Clear();
         _pluginMenu.DropDownItems.Add("Load plugin…", null, (_, _) => LoadPluginFromDialog());
+        _pluginMenu.DropDownItems.Add("Discover", null, (_, _) => OpenPluginCatalog());
+        _pluginMenu.DropDownItems.Add(new Forms.ToolStripSeparator());
         _pluginMenu.DropDownItems.Add("Open plugins folder", null, (_, _) => OpenPluginFolder());
         _pluginMenu.DropDownItems.Add(new Forms.ToolStripSeparator());
 
@@ -480,6 +483,11 @@ public partial class MainWindow : Window
     {
         Directory.CreateDirectory(PluginDirectory);
         Process.Start(new ProcessStartInfo(PluginDirectory) { UseShellExecute = true });
+    }
+
+    private static void OpenPluginCatalog()
+    {
+        Process.Start(new ProcessStartInfo(PluginCatalogUrl) { UseShellExecute = true });
     }
 
     private void AddPositionOption(string position)
