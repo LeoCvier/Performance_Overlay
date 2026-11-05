@@ -12,6 +12,7 @@ using System.Windows.Controls;
 using System.Windows.Media.Animation;
 using System.Windows.Media;
 using System.Windows.Threading;
+using PerformanceOverlay.PluginApi;
 using Forms = System.Windows.Forms;
 
 namespace PerformanceOverlay;
@@ -31,6 +32,7 @@ public partial class MainWindow : Window
     private const uint ModShift = 0x0004;
     private const uint ModWin = 0x0008;
     private const int WmHotkey = 0x0312;
+    private const string PluginCatalogUrl = "https://github.com/LeoCvier/Performance-Overlay-Plugins";
 
     private sealed class HotkeyBinding
     {
@@ -49,8 +51,14 @@ public partial class MainWindow : Window
 
     private System.Windows.Media.Color _accentColor = System.Windows.Media.Color.FromRgb(53, 221, 240);
     private string SettingsPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PerformanceOverlay", "settings.json");
+    private string PluginDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PerformanceOverlay", "Plugins");
     private string _overlayPosition = "Top Left";
     private Forms.ToolStripMenuItem? _positionMenu;
+    private Forms.ToolStripMenuItem? _pluginMenu;
+    private readonly OverlayPluginManager _pluginManager = new();
+    private readonly List<LoadedOverlayPlugin> _loadedPlugins = new();
+    private readonly Dictionary<LoadedOverlayPlugin, FrameworkElement> _pluginContainers = new();
+    private readonly List<string> _pluginLoadErrors = new();
 
     private readonly Computer _computer = new()
     {
@@ -70,6 +78,9 @@ public partial class MainWindow : Window
 
     private Process? _presentMon;
     private readonly object _fpsLock = new();
+    private readonly Queue<(long Timestamp, double IntervalMs)> _fpsSamples = new();
+    private double _fpsWindowDurationMs;
+    private static readonly long FpsWindowTicks = Stopwatch.Frequency;
 
     private double _maxFps;
     private double _minFps = double.PositiveInfinity;
@@ -138,13 +149,22 @@ public partial class MainWindow : Window
         _metrics["GPU TEMP"] = new() { Block = GpuTemp, Label = "GPU TEMP" };
     }
 
-    private void UpdateMetric(string label, string value)
+    private void UpdateMetric(string label, string value, bool revealImmediately = false)
     {
         if (!_metrics.TryGetValue(label, out var metric)) return;
         metric.LastSeenUtc = DateTime.UtcNow;
         metric.Block.Tag = value;
-        if (!metric.IsRevealed) metric.IsPending = true;
-        if (metric.IsRevealed) SetText(metric.Block, label, value);
+        if (revealImmediately)
+        {
+            metric.IsRevealed = true;
+            metric.IsPending = false;
+            SetText(metric.Block, label, value);
+        }
+        else
+        {
+            if (!metric.IsRevealed) metric.IsPending = true;
+            if (metric.IsRevealed) SetText(metric.Block, label, value);
+        }
         RefreshMetricVisibility();
     }
 
@@ -196,6 +216,7 @@ public partial class MainWindow : Window
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         InitializeSystemTray();
+        LoadInstalledPlugins();
         SetAccentColor(_accentColor);
 
         // Position is configurable from the system tray.
@@ -274,6 +295,10 @@ public partial class MainWindow : Window
             AddPositionOption("Top Right");
             _trayMenu.Items.Add(_positionMenu);
 
+            _pluginMenu = new Forms.ToolStripMenuItem("Plugins");
+            _pluginMenu.DropDownOpening += (_, _) => RefreshPluginMenu();
+            _trayMenu.Items.Add(_pluginMenu);
+
             _trayMenu.Items.Add("Reload everything", null, async (_, _) => await ReloadAllAsync());
             _trayMenu.Items.Add("Configure hotkeys…", null, (_, _) => ShowHotkeySettings());
             _trayMenu.Items.Add(new Forms.ToolStripSeparator());
@@ -292,6 +317,177 @@ public partial class MainWindow : Window
             System.Windows.MessageBox.Show($"The system tray icon could not be initialized:\n{ex.Message}",
                 "Performance Overlay", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
+    }
+
+    private void LoadInstalledPlugins()
+    {
+        try
+        {
+            Directory.CreateDirectory(PluginDirectory);
+            foreach (var folder in Directory.GetDirectories(PluginDirectory))
+            {
+                var assemblyPath = Path.Combine(folder, Path.GetFileName(folder) + ".dll");
+                if (!File.Exists(assemblyPath)) continue;
+
+                try { LoadPluginAssembly(assemblyPath); }
+                catch (Exception ex)
+                {
+                    _pluginLoadErrors.Add($"{Path.GetFileName(folder)}: {ex.Message}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _pluginLoadErrors.Add(ex.Message);
+        }
+
+        RefreshPluginMenu();
+    }
+
+    private void RefreshPluginMenu()
+    {
+        if (_pluginMenu is null) return;
+        _pluginMenu.DropDownItems.Clear();
+        _pluginMenu.DropDownItems.Add("Load plugin…", null, (_, _) => LoadPluginFromDialog());
+        _pluginMenu.DropDownItems.Add("Discover", null, (_, _) => OpenPluginCatalog());
+        _pluginMenu.DropDownItems.Add(new Forms.ToolStripSeparator());
+        _pluginMenu.DropDownItems.Add("Open plugins folder", null, (_, _) => OpenPluginFolder());
+        _pluginMenu.DropDownItems.Add(new Forms.ToolStripSeparator());
+
+        if (_loadedPlugins.Count == 0 && _pluginLoadErrors.Count == 0)
+        {
+            _pluginMenu.DropDownItems.Add("No plugins loaded").Enabled = false;
+            return;
+        }
+
+        foreach (var plugin in _loadedPlugins)
+        {
+            var item = new Forms.ToolStripMenuItem(plugin.Instance.Name)
+            {
+                CheckOnClick = true,
+                Checked = _pluginContainers[plugin].Visibility == Visibility.Visible,
+                ToolTipText = plugin.Instance.Description
+            };
+            item.CheckedChanged += (_, _) =>
+                _pluginContainers[plugin].Visibility = item.Checked ? Visibility.Visible : Visibility.Collapsed;
+            _pluginMenu.DropDownItems.Add(item);
+        }
+
+        if (_pluginLoadErrors.Count > 0)
+        {
+            _pluginMenu.DropDownItems.Add(new Forms.ToolStripSeparator());
+            var errors = new Forms.ToolStripMenuItem($"Plugin load errors ({_pluginLoadErrors.Count})")
+            {
+                ToolTipText = string.Join(Environment.NewLine, _pluginLoadErrors)
+            };
+            errors.Click += (_, _) => System.Windows.MessageBox.Show(
+                string.Join(Environment.NewLine + Environment.NewLine, _pluginLoadErrors),
+                "Performance Overlay – Plugin errors",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            _pluginMenu.DropDownItems.Add(errors);
+        }
+    }
+
+    private void LoadPluginFromDialog()
+    {
+        var permission = System.Windows.MessageBox.Show(
+            "Plugins run inside PerformanceOverlay with the same permissions as the application. Only load plugins from sources you trust.",
+            "Load plugin",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+        if (permission != MessageBoxResult.Yes) return;
+
+        Directory.CreateDirectory(PluginDirectory);
+        using var dialog = new Forms.OpenFileDialog
+        {
+            Title = "Select a PerformanceOverlay plugin",
+            Filter = "PerformanceOverlay plugin assemblies (*.dll)|*.dll",
+            CheckFileExists = true,
+            InitialDirectory = PluginDirectory
+        };
+        if (dialog.ShowDialog() != Forms.DialogResult.OK) return;
+
+        var sourcePath = Path.GetFullPath(dialog.FileName);
+        var pluginName = Path.GetFileNameWithoutExtension(sourcePath);
+        var pluginFolder = Path.Combine(PluginDirectory, pluginName);
+        var assemblyPath = Path.Combine(pluginFolder, pluginName + ".dll");
+
+        try
+        {
+            if (!Path.GetDirectoryName(sourcePath)!.Equals(pluginFolder, StringComparison.OrdinalIgnoreCase))
+            {
+                if (Directory.Exists(pluginFolder))
+                    throw new IOException($"A plugin named '{pluginName}' is already installed.");
+
+                CopyPluginFiles(Path.GetDirectoryName(sourcePath)!, pluginFolder);
+            }
+
+            LoadPluginAssembly(assemblyPath);
+            _pluginLoadErrors.RemoveAll(error => error.StartsWith(pluginName + ":", StringComparison.OrdinalIgnoreCase));
+            RefreshPluginMenu();
+        }
+        catch (Exception ex)
+        {
+            _pluginLoadErrors.Add($"{pluginName}: {ex.Message}");
+            RefreshPluginMenu();
+            System.Windows.MessageBox.Show(ex.Message, "Plugin could not be loaded", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private static void CopyPluginFiles(string sourceFolder, string destinationFolder)
+    {
+        foreach (var sourcePath in Directory.EnumerateFiles(sourceFolder, "*", SearchOption.AllDirectories))
+        {
+            var extension = Path.GetExtension(sourcePath);
+            if (!extension.Equals(".dll", StringComparison.OrdinalIgnoreCase) &&
+                !extension.Equals(".json", StringComparison.OrdinalIgnoreCase) &&
+                !extension.Equals(".config", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var relativePath = Path.GetRelativePath(sourceFolder, sourcePath);
+            var destinationPath = Path.Combine(destinationFolder, relativePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+            File.Copy(sourcePath, destinationPath);
+        }
+    }
+
+    private void LoadPluginAssembly(string assemblyPath)
+    {
+        if (_loadedPlugins.Any(plugin => plugin.AssemblyPath.Equals(assemblyPath, StringComparison.OrdinalIgnoreCase)))
+            return;
+
+        var plugin = _pluginManager.Load(assemblyPath);
+        var container = new StackPanel
+        {
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        container.Children.Add(new TextBlock
+        {
+            Text = "  │  ",
+            Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(170, 176, 184)),
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        plugin.View.Margin = new Thickness(0);
+        plugin.View.VerticalAlignment = VerticalAlignment.Center;
+        container.Children.Add(plugin.View);
+        _loadedPlugins.Add(plugin);
+        _pluginContainers.Add(plugin, container);
+        OverlayContent.Children.Add(container);
+        UpdateLayout();
+        ApplyOverlayPosition();
+    }
+
+    private void OpenPluginFolder()
+    {
+        Directory.CreateDirectory(PluginDirectory);
+        Process.Start(new ProcessStartInfo(PluginDirectory) { UseShellExecute = true });
+    }
+
+    private static void OpenPluginCatalog()
+    {
+        Process.Start(new ProcessStartInfo(PluginCatalogUrl) { UseShellExecute = true });
     }
 
     private void AddPositionOption(string position)
@@ -375,6 +571,7 @@ public partial class MainWindow : Window
     private void SetAccentColor(System.Windows.Media.Color color)
     {
         _accentColor = color;
+        Resources[OverlayTheme.AccentBrushKey] = new SolidColorBrush(color);
         foreach (var metric in _metrics.Values)
             if (metric.Block.Tag is string value && !string.IsNullOrEmpty(value))
                 SetText(metric.Block, metric.Label, value);
@@ -530,6 +727,8 @@ public partial class MainWindow : Window
                 _maxFps = 0;
                 _minFps = double.PositiveInfinity;
             }
+            _fpsSamples.Clear();
+            _fpsWindowDurationMs = 0;
 
             RefreshMetricVisibility();
             try { _computer.Open(); } catch { }
@@ -639,7 +838,11 @@ public partial class MainWindow : Window
                 out var pid
             );
 
-            _foregroundProcessId = unchecked((int)pid);
+            // The overlay can briefly become the foreground window when its tray menu
+            // triggers a reload. Keep monitoring the last real foreground application
+            // instead of filtering PresentMon output down to the overlay process.
+            if (pid != 0 && pid != (uint)Environment.ProcessId)
+                _foregroundProcessId = unchecked((int)pid);
 
             float? cpuLoad = null;
             float? cpuTemp = null;
@@ -813,31 +1016,30 @@ public partial class MainWindow : Window
                 StandardOutputEncoding = Encoding.UTF8
             };
 
-            _presentMon = Process.Start(psi);
+            var presentMon = Process.Start(psi);
+            _presentMon = presentMon;
 
-            if (_presentMon is null)
+            if (presentMon is null)
             {
                 SetText(FpsAvg, "FPS AVG", "Not started");
                 return;
             }
 
-            _ = Task.Run(ReadPresentMonAsync);
+            _ = Task.Run(() => ReadPresentMonAsync(presentMon));
 
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    var error =
-                        await _presentMon.StandardError.ReadToEndAsync();
+                    var error = await presentMon.StandardError.ReadToEndAsync();
 
-                    if (!string.IsNullOrWhiteSpace(error))
+                    if (!string.IsNullOrWhiteSpace(error) && ReferenceEquals(_presentMon, presentMon))
                     {
                         Dispatcher.Invoke(() =>
-                            SetText(
-                                FpsAvg,
-                                "FPS AVG",
-                                "Capture error"
-                            )
+                        {
+                            if (ReferenceEquals(_presentMon, presentMon) && !_fpsReceived)
+                                SetText(FpsAvg, "FPS AVG", "Capture error");
+                        }
                         );
                     }
                 }
@@ -850,11 +1052,8 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task ReadPresentMonAsync()
+    private async Task ReadPresentMonAsync(Process presentMon)
     {
-        if (_presentMon is null)
-            return;
-
         string? header = null;
 
         int displayColumn = -1;
@@ -863,10 +1062,9 @@ public partial class MainWindow : Window
 
         try
         {
-            while (!_presentMon.HasExited)
+            while (!presentMon.HasExited)
             {
-                var line =
-                    await _presentMon.StandardOutput.ReadLineAsync();
+                var line = await presentMon.StandardOutput.ReadLineAsync();
 
                 if (line is null)
                     break;
@@ -961,7 +1159,7 @@ public partial class MainWindow : Window
                 if (!valid)
                     continue;
 
-                double fps = 1000.0 / ms;
+                var sampleTimestamp = Stopwatch.GetTimestamp();
 
                 Dispatcher.Invoke(() =>
                 {
@@ -969,16 +1167,26 @@ public partial class MainWindow : Window
                     _fpsReceived = true;
                     if (!_isFullReloading) StopBorderAnimation();
 
+                    _fpsSamples.Enqueue((sampleTimestamp, ms));
+                    _fpsWindowDurationMs += ms;
+                    var cutoff = sampleTimestamp - FpsWindowTicks;
+                    while (_fpsSamples.Count > 0 && _fpsSamples.Peek().Timestamp < cutoff)
+                        _fpsWindowDurationMs -= _fpsSamples.Dequeue().IntervalMs;
+
+                    if (_fpsWindowDurationMs <= 0 || _fpsSamples.Count == 0)
+                        return;
+
+                    double fps = _fpsSamples.Count * 1000.0 / _fpsWindowDurationMs;
                     lock (_fpsLock)
                     {
                         _maxFps = Math.Max(_maxFps, fps);
                         _minFps = Math.Min(_minFps, fps);
 
-                        UpdateMetric("FPS AVG", $"{fps:0}");
+                        UpdateMetric("FPS AVG", $"{fps:0}", revealImmediately: true);
 
-                        UpdateMetric("FPS MAX", $"{_maxFps:0}");
+                        UpdateMetric("FPS MAX", $"{_maxFps:0}", revealImmediately: true);
 
-                        UpdateMetric("FPS MIN", $"{_minFps:0}");
+                        UpdateMetric("FPS MIN", $"{_minFps:0}", revealImmediately: true);
                     }
                 });
             }
@@ -988,12 +1196,10 @@ public partial class MainWindow : Window
             try
             {
                 Dispatcher.Invoke(() =>
-                    SetText(
-                        FpsAvg,
-                        "FPS AVG",
-                        "Capture stopped"
-                    )
-                );
+                {
+                    if (ReferenceEquals(_presentMon, presentMon) && !_fpsReceived)
+                        SetText(FpsAvg, "FPS AVG", "Capture stopped");
+                });
             }
             catch { }
         }
@@ -1141,6 +1347,14 @@ public partial class MainWindow : Window
         StopBorderAnimation();
         _timer.Stop();
         _resetFlashTimer.Stop();
+
+        foreach (var plugin in _loadedPlugins)
+        {
+            try { plugin.Dispose(); }
+            catch { }
+        }
+        _loadedPlugins.Clear();
+        _pluginContainers.Clear();
 
         if (_trayIcon is not null)
         {

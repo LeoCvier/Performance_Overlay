@@ -2,6 +2,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
+    <Version>1.1.0</Version>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>app.ico</ApplicationIcon>
@@ -11,7 +12,12 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.4" />
-    </ItemGroup>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="PluginApi\PerformanceOverlay.PluginApi.csproj" />
+    <Compile Remove="PluginApi\**\*.cs" />
+    <Compile Remove="Plugins\**\*.cs" />
+  </ItemGroup>
   <ItemGroup>
     <Content Include="app.ico" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

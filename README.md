@@ -25,6 +25,7 @@ After installation, the overlay starts automatically when you sign in. It stays 
 - **Overlay position:** place it at the top left, top center, or top right
 - **Overlay color:** choose an accent color
 - **Configure hotkeys:** change the keyboard shortcuts
+- **Plugins:** load trusted external .NET plugins and show or hide their overlay views
 - **Reload everything:** restart the sensors and FPS capture, and reset the session's minimum and maximum FPS
 - **Exit:** close the application
 
@@ -43,3 +44,5 @@ The selected position, color, and hotkeys are saved in `%APPDATA%\PerformanceOve
 The overlay reads CPU and GPU sensors through LibreHardwareMonitor and gets RAM usage from Windows. PresentMon captures the frame rate of supported applications. Sensor availability depends on your hardware, firmware, drivers, and permissions, so some metrics may not be available on every system.
 
 The FPS display shows the current average and the minimum and maximum since the last reset or application restart. A green animated border appears while FPS capture is waiting for its first data. A purple border appears while **Reload everything** is running.
+
+Plugins are stored under `%LOCALAPPDATA%\PerformanceOverlay\Plugins` and load automatically when the application starts. See [PLUGINS.md](PLUGINS.md) for the plugin interface and installation details.
