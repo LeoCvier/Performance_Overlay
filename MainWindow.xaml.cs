@@ -114,7 +114,6 @@ public partial class MainWindow : Window
     private bool _isStopping;
     private bool _isFullReloading;
     private bool _fpsReceived;
-    private Storyboard? _borderAnimation;
     private bool _resetFlash;
     private Forms.NotifyIcon? _trayIcon;
     private Forms.ContextMenuStrip? _trayMenu;
@@ -605,8 +604,6 @@ public partial class MainWindow : Window
             "RAM LOAD: System memory usage.\n" +
             "GPU LOAD: Graphics processor utilization.\n" +
             "GPU TEMP: Graphics processor temperature.\n\n" +
-            "PURPLE BORDER: A full overlay reload is in progress.\n" +
-            "GREEN BORDER: FPS capture is starting or waiting for FPS data.\n\n" +
             "After a focus change, FPS fields show — while waiting for frame data. If no data arrives within five seconds, the dashes remain for five seconds and the FPS fields hide until data returns. After active capture goes quiet, the same five-second dash period starts after five seconds without a frame.";
         System.Windows.MessageBox.Show(help, "Performance Overlay – Help", MessageBoxButton.OK, MessageBoxImage.Information);
     }
@@ -768,7 +765,6 @@ public partial class MainWindow : Window
         if (_isStopping || _isFullReloading) return;
 
         _isFullReloading = true;
-        StartBorderAnimation(System.Windows.Media.Colors.MediumPurple);
         try
         {
             // A reload from the tray must also bring the actual overlay back on screen.
@@ -808,56 +804,7 @@ public partial class MainWindow : Window
         finally
         {
             _isFullReloading = false;
-            StopBorderAnimation();
-            // If ETW has not produced a frame yet, show the green activity sweep.
-            if (!_fpsReceived && !_isStopping)
-                StartFpsBorderAnimation();
         }
-    }
-
-    private void StartBorderAnimation(System.Windows.Media.Color color)
-    {
-        StopBorderAnimation();
-        ReloadAnimationStroke.Stroke = new SolidColorBrush(color);
-        ReloadAnimationStroke.Visibility = Visibility.Visible;
-        var animation = new DoubleAnimation
-        {
-            From = 0,
-            To = -260,
-            Duration = TimeSpan.FromMilliseconds(1150),
-            RepeatBehavior = RepeatBehavior.Forever
-        };
-        _borderAnimation = new Storyboard();
-        _borderAnimation.Children.Add(animation);
-        Storyboard.SetTarget(animation, ReloadAnimationStroke);
-        Storyboard.SetTargetProperty(animation, new PropertyPath(System.Windows.Shapes.Shape.StrokeDashOffsetProperty));
-        _borderAnimation.Begin(this, true);
-    }
-
-    private void StartFpsBorderAnimation()
-    {
-        if (_isStopping || _isFullReloading || _fpsReceived) return;
-        StartBorderAnimation(System.Windows.Media.Colors.LimeGreen);
-        _ = Task.Run(async () =>
-        {
-            await Task.Delay(TimeSpan.FromSeconds(12));
-            try
-            {
-                await Dispatcher.InvokeAsync(() =>
-                {
-                    if (!_isFullReloading && !_fpsReceived) StopBorderAnimation();
-                });
-            }
-            catch { }
-        });
-    }
-
-    private void StopBorderAnimation()
-    {
-        _borderAnimation?.Stop(this);
-        _borderAnimation = null;
-        if (ReloadAnimationStroke is not null)
-            ReloadAnimationStroke.Visibility = Visibility.Collapsed;
     }
 
     // Text styling
@@ -1171,7 +1118,6 @@ public partial class MainWindow : Window
             return;
 
         _fpsReceived = false;
-        if (!_isFullReloading) StartFpsBorderAnimation();
         try
         {
             _fpsCapture = new FpsCaptureService(OnNativeFpsSample, LogFpsDiagnostic);
@@ -1214,7 +1160,6 @@ public partial class MainWindow : Window
 
             _fpsReceived = true;
             _fpsDashSinceUtc = null;
-            if (!_isFullReloading) StopBorderAnimation();
 
             lock (_fpsLock)
             {
@@ -1336,7 +1281,6 @@ public partial class MainWindow : Window
     // Cleanup
     private void OnClosed(object? sender, EventArgs e)
     {
-        StopBorderAnimation();
         _timer.Stop();
         _resetFlashTimer.Stop();
 

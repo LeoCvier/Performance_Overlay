@@ -39,14 +39,5 @@
                 <TextBlock x:Name="GpuTemp" Visibility="Collapsed"/>
             </StackPanel>
         </Border>
-        <Rectangle x:Name="ReloadAnimationStroke"
-                   IsHitTestVisible="True"
-                   RadiusX="8" RadiusY="8"
-                   Stroke="#FFB266FF"
-                   StrokeThickness="2"
-                   StrokeDashArray="10 160"
-                   StrokeDashOffset="0"
-                   Fill="Transparent"
-                   Visibility="Collapsed" />
     </Grid>
 </Window>

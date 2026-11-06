@@ -1,5 +1,5 @@
 #define MyAppName "PerformanceOverlay"
-#define MyAppVersion "1.1.1"
+#define MyAppVersion "1.1.2"
 #define MyAppPublisher "LeoCvier"
 #define MyAppExeName "PerformanceOverlay.exe"
 
@@ -41,4 +41,5 @@ Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Fil
 
 [UninstallRun]
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\Unregister-Autostart.ps1"""; Flags: runhidden waituntilterminated; RunOnceId: "RemovePerformanceOverlayTask"
+
 
