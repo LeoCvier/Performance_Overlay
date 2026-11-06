@@ -9,11 +9,11 @@ A Windows overlay that keeps important PC performance metrics visible while you 
 - **GPU:** utilization and temperature, when reported by your system
 - **RAM:** current memory usage
 
-After three seconds without frame data, FPS AVG changes to an em dash while MAX and MIN keep their last values. After five seconds, the entire FPS category is hidden. Capture errors show an em dash instead of an error message.
+FPS values follow the focused window. After five seconds without new frame data, the FPS fields show dashes for five seconds and then hide until frame data returns. Windows DirectX presentation events are captured locally through ETW.
 
 ## Installation
 
-Download `PerformanceOverlay-Setup-x64.exe` from **Releases** and run it. The setup installs the application and includes the required components, including PresentMon. You do **not** need to install the .NET runtime/SDK or PresentMon separately.
+Download `PerformanceOverlay-Setup-v1.1.20-x64.exe` from **Releases** and run it. The setup installs the application with its required components. You do **not** need to install the .NET runtime/SDK or a separate FPS tool.
 
 Windows User Account Control will ask for administrator approval during installation. The application also runs with elevated permissions for hardware and FPS capture. The setup configures the application to start automatically when the installing Windows account signs in. That account must have administrator privileges for elevated startup.
 
@@ -37,12 +37,13 @@ Default hotkeys:
 
 If another program is already using a hotkey, it cannot be registered. Choose a different combination in the notification area menu.
 
-The selected position, color, and hotkeys are saved in `%APPDATA%\PerformanceOverlay\settings.json`.
+The selected position, color, and hotkeys are saved in `%APPDATA%\PerformanceOverlay\settings.json`. Local diagnostic and error logs are stored under `%LOCALAPPDATA%\PerformanceOverlay\Logs`; log storage is capped at 1 GB, with the oldest files removed first.
 
 ## How monitoring works
 
-The overlay reads CPU and GPU sensors through LibreHardwareMonitor and gets RAM usage from Windows. PresentMon captures the frame rate of supported applications. Sensor availability depends on your hardware, firmware, drivers, and permissions, so some metrics may not be available on every system.
+The overlay reads CPU and GPU sensors through LibreHardwareMonitor and gets RAM usage from Windows. FPS capture listens to Windows DirectX presentation events in an ETW session inside the overlay process. Sensor availability depends on your hardware, firmware, drivers, and permissions, so some metrics may not be available on every system.
 
-FPS is reported per supported foreground app, not as one combined value for the whole desktop. The minimum and maximum track the current session. A green animated border appears while FPS capture is waiting for data. A purple border appears while **Reload everything** is running.
+FPS is reported per supported foreground app, not as one combined value for the whole desktop. The minimum and maximum track the current session. A green animated border appears while FPS capture is waiting for data. The tray menu displays the installed version. A purple border appears while **Reload everything** is running.
 
 Plugins are stored under `%LOCALAPPDATA%\PerformanceOverlay\Plugins` and load automatically when the application starts. See [PLUGINS.md](PLUGINS.md) for the plugin interface and installation details.
+

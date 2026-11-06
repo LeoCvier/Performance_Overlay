@@ -76,16 +76,15 @@ public partial class MainWindow : Window
         Interval = TimeSpan.FromSeconds(1)
     };
 
-    private Process? _presentMon;
+    private FpsCaptureService? _fpsCapture;
+    private int _loggedDwmFallback;
     private int[] _fpsTargetProcessIds = Array.Empty<int>();
+    private string[] _fpsTargetProcessNames = Array.Empty<string>();
     private readonly object _fpsLock = new();
-    private readonly Queue<(long Timestamp, double IntervalMs)> _fpsSamples = new();
-    private double _fpsWindowDurationMs;
-    private static readonly long FpsWindowTicks = Stopwatch.Frequency;
     private DateTime _lastFpsDataUtc = DateTime.UtcNow;
+    private DateTime? _fpsDashSinceUtc;
     private static readonly HashSet<string> NonRenderingShellProcesses = new(StringComparer.OrdinalIgnoreCase)
     {
-        "explorer",
         "ShellExperienceHost",
         "StartMenuExperienceHost",
         "SearchHost",
@@ -109,8 +108,8 @@ public partial class MainWindow : Window
 
     private readonly Dictionary<string, MetricState> _metrics = new();
     private static readonly TimeSpan MetricTimeout = TimeSpan.FromMinutes(5);
-    private static readonly TimeSpan FpsAverageTimeout = TimeSpan.FromSeconds(3);
-    private static readonly TimeSpan FpsCategoryTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan FpsNoDataTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan FpsDashGracePeriod = TimeSpan.FromSeconds(5);
     private HwndSource? _source;
     private bool _isStopping;
     private bool _isFullReloading;
@@ -189,16 +188,37 @@ public partial class MainWindow : Window
     {
         var now = DateTime.UtcNow;
         var fpsAge = now - _lastFpsDataUtc;
-        var showFpsCategory = fpsAge <= FpsCategoryTimeout;
+
+        if (!_fpsReceived)
+        {
+            _fpsDashSinceUtc ??= _lastFpsDataUtc;
+        }
+        else if (fpsAge >= FpsNoDataTimeout)
+        {
+            _fpsDashSinceUtc ??= _lastFpsDataUtc + FpsNoDataTimeout;
+        }
+        else
+        {
+            _fpsDashSinceUtc = null;
+        }
+
+        var showFpsDashes = _fpsDashSinceUtc is { } dashSince &&
+                            now - dashSince < FpsDashGracePeriod;
+        var showFpsValues = _fpsDashSinceUtc is null;
+        if (showFpsDashes)
+        {
+            SetText(FpsAvg, "FPS AVG", "—");
+            SetText(FpsMax, "FPS MAX", "—");
+            SetText(FpsMin, "FPS MIN", "—");
+        }
+
         foreach (var metric in _metrics.Values)
         {
             if (metric.Label.StartsWith("FPS ", StringComparison.Ordinal))
             {
-                metric.IsRevealed = showFpsCategory;
+                metric.IsRevealed = showFpsValues || showFpsDashes;
                 metric.IsPending = false;
-                metric.Block.Visibility = showFpsCategory ? Visibility.Visible : Visibility.Collapsed;
-                if (metric.Label == "FPS AVG" && showFpsCategory && fpsAge > FpsAverageTimeout)
-                    SetText(metric.Block, metric.Label, "—");
+                metric.Block.Visibility = metric.IsRevealed ? Visibility.Visible : Visibility.Collapsed;
                 continue;
             }
 
@@ -252,6 +272,7 @@ public partial class MainWindow : Window
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        LogFpsDiagnostic($"Overlay started; pid={Environment.ProcessId}; base={AppContext.BaseDirectory}");
         InitializeSystemTray();
         LoadInstalledPlugins();
         SetAccentColor(_accentColor);
@@ -286,7 +307,7 @@ public partial class MainWindow : Window
         }
         catch { }
 
-        StartPresentMon();
+        StartFpsCapture();
 
         _timer.Start();
 
@@ -341,6 +362,13 @@ public partial class MainWindow : Window
             _trayMenu.Items.Add("Configure hotkeys…", null, (_, _) => ShowHotkeySettings());
             _trayMenu.Items.Add(new Forms.ToolStripSeparator());
             _trayMenu.Items.Add("Help", null, (_, _) => ShowIndicatorHelp());
+            _trayMenu.Items.Add(new Forms.ToolStripSeparator());
+            var version = typeof(MainWindow).Assembly.GetName().Version;
+            var versionItem = new Forms.ToolStripMenuItem($"Version {version?.ToString(3) ?? "unknown"}")
+            {
+                Enabled = false
+            };
+            _trayMenu.Items.Add(versionItem);
             _trayMenu.Items.Add(new Forms.ToolStripSeparator());
             _trayMenu.Items.Add("Exit", null, (_, _) => StopOverlayAnimation());
             _trayIcon.ContextMenuStrip = _trayMenu;
@@ -570,7 +598,7 @@ public partial class MainWindow : Window
         const string help =
             "PERFORMANCE OVERLAY – INDICATOR GUIDE\n\n" +
             "GREEN DOT: At least one sensor has a new reading available. Press the reload hotkey to reveal available readings.\n\n" +
-            "FPS AVG: Current average frames per second reported by PresentMon for the captured application.\n" +
+            "FPS AVG: Current average frames per second reported by Windows graphics events for the captured application.\n" +
             "FPS MAX / FPS MIN: Highest and lowest FPS recorded during the current session.\n\n" +
             "CPU LOAD: Processor utilization.\n" +
             "CPU TEMP: Processor temperature, when supported by the hardware.\n" +
@@ -579,7 +607,7 @@ public partial class MainWindow : Window
             "GPU TEMP: Graphics processor temperature.\n\n" +
             "PURPLE BORDER: A full overlay reload is in progress.\n" +
             "GREEN BORDER: FPS capture is starting or waiting for FPS data.\n\n" +
-            "After three seconds without frame data, FPS AVG shows — while MAX and MIN keep their last values. After five seconds, the entire FPS category is hidden. Capture errors show — instead of an error message.";
+            "After a focus change, FPS fields show — while waiting for frame data. If no data arrives within five seconds, the dashes remain for five seconds and the FPS fields hide until data returns. After active capture goes quiet, the same five-second dash period starts after five seconds without a frame.";
         System.Windows.MessageBox.Show(help, "Performance Overlay – Help", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
@@ -747,9 +775,6 @@ public partial class MainWindow : Window
             ShowOverlayFromTray();
             _timer.Stop();
 
-            try { _presentMon?.Kill(true); } catch { }
-            try { _presentMon?.Dispose(); } catch { }
-            _presentMon = null;
             try { _computer.Close(); } catch { }
 
             foreach (var metric in _metrics.Values)
@@ -769,12 +794,10 @@ public partial class MainWindow : Window
                 _maxFps = 0;
                 _minFps = double.PositiveInfinity;
             }
-            _fpsSamples.Clear();
-            _fpsWindowDurationMs = 0;
 
             RefreshMetricVisibility();
             try { _computer.Open(); } catch { }
-            StartPresentMon();
+            StartFpsCapture();
             UpdateHardware();
             RevealAvailableMetrics();
             _timer.Start();
@@ -786,7 +809,7 @@ public partial class MainWindow : Window
         {
             _isFullReloading = false;
             StopBorderAnimation();
-            // If PresentMon has not produced a frame yet, show its own green activity sweep.
+            // If ETW has not produced a frame yet, show the green activity sweep.
             if (!_fpsReceived && !_isStopping)
                 StartFpsBorderAnimation();
         }
@@ -960,20 +983,22 @@ public partial class MainWindow : Window
     {
         _foregroundProcessId = processId;
         RefreshFpsTargetProcessIds();
+        LogFpsDiagnostic($"FPS target changed; pid={processId}; family={string.Join(',', Volatile.Read(ref _fpsTargetProcessIds))}; processNames={string.Join(',', Volatile.Read(ref _fpsTargetProcessNames))}");
         _fpsReceived = false;
         _lastFpsDataUtc = DateTime.UtcNow;
+        _fpsDashSinceUtc = _lastFpsDataUtc;
         lock (_fpsLock)
         {
             _maxFps = 0;
             _minFps = double.PositiveInfinity;
         }
-        _fpsSamples.Clear();
-        _fpsWindowDurationMs = 0;
 
         SetText(FpsAvg, "FPS AVG", "—");
         SetText(FpsMax, "FPS MAX", "—");
         SetText(FpsMin, "FPS MIN", "—");
         RefreshMetricVisibility();
+
+        StartFpsCapture();
     }
 
     private void RefreshFpsTargetProcessIds()
@@ -982,14 +1007,19 @@ public partial class MainWindow : Window
         if (rootPid == 0)
         {
             Volatile.Write(ref _fpsTargetProcessIds, Array.Empty<int>());
+            Volatile.Write(ref _fpsTargetProcessNames, Array.Empty<string>());
             return;
         }
 
         var parents = new Dictionary<int, int>();
+        var processNames = new Dictionary<int, string>();
         var snapshot = CreateToolhelp32Snapshot(Th32csSnapProcess, 0);
         if (snapshot == new IntPtr(-1))
         {
             Volatile.Write(ref _fpsTargetProcessIds, new[] { rootPid });
+            var rootName = GetProcessExecutableName(rootPid);
+            Volatile.Write(ref _fpsTargetProcessNames,
+                rootName.Length > 0 ? new[] { rootName } : Array.Empty<string>());
             return;
         }
 
@@ -1000,7 +1030,10 @@ public partial class MainWindow : Window
             {
                 do
                 {
-                    parents[unchecked((int)entry.ProcessId)] = unchecked((int)entry.ParentProcessId);
+                    var processId = unchecked((int)entry.ProcessId);
+                    parents[processId] = unchecked((int)entry.ParentProcessId);
+                    if (!string.IsNullOrWhiteSpace(entry.ExeFile))
+                        processNames[processId] = entry.ExeFile;
                     entry.Size = (uint)Marshal.SizeOf<ProcessEntry32>();
                 } while (Process32Next(snapshot, ref entry));
             }
@@ -1020,7 +1053,25 @@ public partial class MainWindow : Window
                     changed = true;
         } while (changed);
 
-        Volatile.Write(ref _fpsTargetProcessIds, descendants.ToArray());
+        var targetIds = descendants.ToArray();
+        Volatile.Write(ref _fpsTargetProcessIds, targetIds);
+        var targetNames = targetIds
+            .Select(pid => processNames.TryGetValue(pid, out var name) ? name : GetProcessExecutableName(pid))
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        Volatile.Write(ref _fpsTargetProcessNames, targetNames);
+    }
+
+    private static string GetProcessExecutableName(int processId)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            return $"{process.ProcessName}.exe";
+        }
+        catch { return string.Empty; }
     }
 
     private static bool IsNonRenderingShellProcess(uint processId)
@@ -1114,253 +1165,70 @@ public partial class MainWindow : Window
     }
 
     // FPS monitoring
-    private void StartPresentMon()
+    private void StartFpsCapture()
     {
+        if (_fpsCapture is not null || _isStopping)
+            return;
+
         _fpsReceived = false;
         if (!_isFullReloading) StartFpsBorderAnimation();
-        var exe = Path.Combine(
-            AppContext.BaseDirectory,
-            "PresentMon.exe"
-        );
-
-        if (!File.Exists(exe))
+        try
         {
+            _fpsCapture = new FpsCaptureService(OnNativeFpsSample, LogFpsDiagnostic);
+        }
+        catch (Exception ex)
+        {
+            LogFpsDiagnostic($"Native FPS capture could not start; error={ex}");
             SetFpsStatus();
+        }
+    }
 
+    private void OnNativeFpsSample(int processId, double fps)
+    {
+        if (fps <= 0 || !double.IsFinite(fps))
+            return;
+
+        var targets = Volatile.Read(ref _fpsTargetProcessIds);
+        var isDesktopCompositionFallback = processId == FpsCaptureService.DesktopCompositionProcessId;
+        if (isDesktopCompositionFallback)
+        {
+            // Explorer can be idle while DWM continues presenting the desktop
+            // at the display cadence. Use that measured cadence for the shell
+            // window so its FPS fields remain useful while it has focus.
+            var names = Volatile.Read(ref _fpsTargetProcessNames);
+            if (!names.Contains("explorer.exe", StringComparer.OrdinalIgnoreCase))
+                return;
+            if (Interlocked.Exchange(ref _loggedDwmFallback, 1) == 0)
+                LogFpsDiagnostic($"Using DWM desktop presentation cadence for focused Explorer; fps={fps:0.##}");
+            processId = Volatile.Read(ref _foregroundProcessId);
+        }
+        else if (processId == Environment.ProcessId || !targets.Contains(processId))
+        {
             return;
         }
 
-        try
+        Dispatcher.BeginInvoke(() =>
         {
-            var psi = new ProcessStartInfo(
-               exe,
-               "--output_stdout --no_console_stats --no_track_gpu --v1_metrics --session_name PerformanceOverlayFPS --stop_existing_session --restart_as_admin"
-            )
-            {
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
-                StandardOutputEncoding = Encoding.UTF8
-            };
-
-            var presentMon = Process.Start(psi);
-            _presentMon = presentMon;
-
-            if (presentMon is null)
-            {
-                SetFpsStatus();
+            if (_isStopping || !Volatile.Read(ref _fpsTargetProcessIds).Contains(processId))
                 return;
-            }
 
-            _ = Task.Run(() => ReadPresentMonAsync(presentMon));
+            _fpsReceived = true;
+            _fpsDashSinceUtc = null;
+            if (!_isFullReloading) StopBorderAnimation();
 
-            _ = Task.Run(async () =>
+            lock (_fpsLock)
             {
-                try
-                {
-                    var error = await presentMon.StandardError.ReadToEndAsync();
-
-                    if (!string.IsNullOrWhiteSpace(error) && ReferenceEquals(_presentMon, presentMon))
-                    {
-                        Dispatcher.Invoke(() =>
-                        {
-                            if (ReferenceEquals(_presentMon, presentMon) && !_fpsReceived)
-                                SetFpsStatus();
-                        }
-                        );
-                    }
-                }
-                catch { }
-            });
-        }
-        catch
-        {
-            SetFpsStatus();
-        }
+                _maxFps = Math.Max(_maxFps, fps);
+                _minFps = Math.Min(_minFps, fps);
+                UpdateMetric("FPS AVG", $"{fps:0}", revealImmediately: true);
+                UpdateMetric("FPS MAX", $"{_maxFps:0}", revealImmediately: true);
+                UpdateMetric("FPS MIN", $"{_minFps:0}", revealImmediately: true);
+            }
+        }, System.Windows.Threading.DispatcherPriority.Background);
     }
-
-    private async Task ReadPresentMonAsync(Process presentMon)
+    private void LogFpsDiagnostic(string message)
     {
-        string? header = null;
-
-        int displayColumn = -1;
-        int presentColumn = -1;
-        int processColumn = -1;
-
-        try
-        {
-            while (!presentMon.HasExited)
-            {
-                var line = await presentMon.StandardOutput.ReadLineAsync();
-
-                if (line is null)
-                    break;
-
-                if (header is null &&
-                    line.Contains(
-                        "Application",
-                        StringComparison.OrdinalIgnoreCase
-                    ) &&
-                    line.Contains(
-                        "MsBetween",
-                        StringComparison.OrdinalIgnoreCase
-                    ))
-                {
-                    header = line;
-
-                    var cols = SplitCsv(line);
-
-                    displayColumn = Array.FindIndex(
-                        cols,
-                        x => x.Trim().Equals(
-                            "MsBetweenDisplayChange",
-                            StringComparison.OrdinalIgnoreCase
-                        )
-                    );
-
-                    presentColumn = Array.FindIndex(
-                        cols,
-                        x => x.Trim().Equals(
-                            "MsBetweenPresents",
-                            StringComparison.OrdinalIgnoreCase
-                        )
-                    );
-
-                    processColumn = Array.FindIndex(
-                        cols,
-                        x => x.Trim().Equals(
-                            "ProcessID",
-                            StringComparison.OrdinalIgnoreCase
-                        )
-                    );
-
-                    continue;
-                }
-
-                if (header is null)
-                    continue;
-
-                var values = SplitCsv(line);
-
-                if (processColumn >= 0 && processColumn < values.Length &&
-                    int.TryParse(values[processColumn], out var rowPid))
-                {
-                    var targetProcessIds = Volatile.Read(ref _fpsTargetProcessIds);
-                    if (rowPid == Environment.ProcessId || !targetProcessIds.Contains(rowPid))
-                        continue;
-                }
-
-                double ms = 0;
-
-                bool valid =
-                    displayColumn >= 0 &&
-                    displayColumn < values.Length &&
-                    double.TryParse(
-                        values[displayColumn],
-                        NumberStyles.Float,
-                        CultureInfo.InvariantCulture,
-                        out ms
-                    ) &&
-                    ms > 0 &&
-                    ms < 1000;
-
-                if (!valid)
-                {
-                    valid =
-                        presentColumn >= 0 &&
-                        presentColumn < values.Length &&
-                        double.TryParse(
-                            values[presentColumn],
-                            NumberStyles.Float,
-                            CultureInfo.InvariantCulture,
-                            out ms
-                        ) &&
-                        ms > 0 &&
-                        ms < 1000;
-                }
-
-                if (!valid)
-                    continue;
-
-                var sampleTimestamp = Stopwatch.GetTimestamp();
-
-                Dispatcher.Invoke(() =>
-                {
-                    if (_isStopping) return;
-                    _fpsReceived = true;
-                    if (!_isFullReloading) StopBorderAnimation();
-
-                    _fpsSamples.Enqueue((sampleTimestamp, ms));
-                    _fpsWindowDurationMs += ms;
-                    var cutoff = sampleTimestamp - FpsWindowTicks;
-                    while (_fpsSamples.Count > 0 && _fpsSamples.Peek().Timestamp < cutoff)
-                        _fpsWindowDurationMs -= _fpsSamples.Dequeue().IntervalMs;
-
-                    if (_fpsWindowDurationMs <= 0 || _fpsSamples.Count == 0)
-                        return;
-
-                    double fps = _fpsSamples.Count * 1000.0 / _fpsWindowDurationMs;
-                    lock (_fpsLock)
-                    {
-                        _maxFps = Math.Max(_maxFps, fps);
-                        _minFps = Math.Min(_minFps, fps);
-
-                        UpdateMetric("FPS AVG", $"{fps:0}", revealImmediately: true);
-
-                        UpdateMetric("FPS MAX", $"{_maxFps:0}", revealImmediately: true);
-
-                        UpdateMetric("FPS MIN", $"{_minFps:0}", revealImmediately: true);
-                    }
-                });
-            }
-        }
-        catch
-        {
-            try
-            {
-                Dispatcher.Invoke(() =>
-                {
-                    if (ReferenceEquals(_presentMon, presentMon) && !_fpsReceived)
-                        SetFpsStatus();
-                });
-            }
-            catch { }
-        }
-    }
-
-    // CSV reader
-    private static string[] SplitCsv(string line)
-    {
-        var result = new List<string>();
-        var sb = new StringBuilder();
-
-        bool quoted = false;
-
-        for (int i = 0; i < line.Length; i++)
-        {
-            char c = line[i];
-
-            if (c == '"')
-            {
-                quoted = !quoted;
-                continue;
-            }
-
-            if (c == ',' && !quoted)
-            {
-                result.Add(sb.ToString());
-                sb.Clear();
-            }
-            else
-            {
-                sb.Append(c);
-            }
-        }
-
-        result.Add(sb.ToString());
-
-        return result.ToArray();
+        LocalLog.Write("FPS", message);
     }
 
     // Keyboard shortcuts
@@ -1416,8 +1284,8 @@ public partial class MainWindow : Window
         var hwnd = new WindowInteropHelper(this).Handle;
         foreach (int id in _hotkeys.Keys) UnregisterHotKey(hwnd, id);
 
-        try { _presentMon?.Kill(true); }
-        catch { }
+        _fpsCapture?.Dispose();
+        _fpsCapture = null;
 
         // Keep the original overlay dimensions while replacing all its text.
         double overlayWidth = Math.Max(1, ActualWidth);
@@ -1493,8 +1361,8 @@ public partial class MainWindow : Window
 
         foreach (int id in _hotkeys.Keys) UnregisterHotKey(hwnd, id);
 
-        try { _presentMon?.Kill(true); }
-        catch { }
+        _fpsCapture?.Dispose();
+        _fpsCapture = null;
 
         try { _computer.Close(); }
         catch { }
