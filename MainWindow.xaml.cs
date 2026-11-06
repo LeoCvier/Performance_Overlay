@@ -1134,7 +1134,7 @@ public partial class MainWindow : Window
         {
             var psi = new ProcessStartInfo(
                exe,
-               "--output_stdout --no_console_stats --no_track_gpu --v1_metrics --restart_as_admin"
+               "--output_stdout --no_console_stats --no_track_gpu --v1_metrics --session_name PerformanceOverlayFPS --stop_existing_session --restart_as_admin"
             )
             {
                 UseShellExecute = false,
