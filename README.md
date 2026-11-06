@@ -9,7 +9,7 @@ A Windows overlay that keeps important PC performance metrics visible while you 
 - **GPU:** utilization and temperature, when reported by your system
 - **RAM:** current memory usage
 
-The FPS AVG line stays visible at all times. Its last number clears after five seconds without frame data, then it shows an em dash until capture resumes. Other unavailable metrics are hidden; sensor readings are hidden again if no fresh data arrives for more than five minutes.
+After three seconds without frame data, FPS AVG changes to an em dash while MAX and MIN keep their last values. After five seconds, the entire FPS category is hidden. Capture errors show an em dash instead of an error message.
 
 ## Installation
 
@@ -43,6 +43,6 @@ The selected position, color, and hotkeys are saved in `%APPDATA%\PerformanceOve
 
 The overlay reads CPU and GPU sensors through LibreHardwareMonitor and gets RAM usage from Windows. PresentMon captures the frame rate of supported applications. Sensor availability depends on your hardware, firmware, drivers, and permissions, so some metrics may not be available on every system.
 
-The FPS display follows the supported foreground application; FPS is reported per app, not as one combined value for the whole desktop. The average remains visible while capture waits, and the minimum and maximum track the current session. A green animated border appears while FPS capture is waiting for data. A purple border appears while **Reload everything** is running.
+FPS is reported per supported foreground app, not as one combined value for the whole desktop. The minimum and maximum track the current session. A green animated border appears while FPS capture is waiting for data. A purple border appears while **Reload everything** is running.
 
 Plugins are stored under `%LOCALAPPDATA%\PerformanceOverlay\Plugins` and load automatically when the application starts. See [PLUGINS.md](PLUGINS.md) for the plugin interface and installation details.

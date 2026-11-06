@@ -81,6 +81,7 @@ public partial class MainWindow : Window
     private readonly Queue<(long Timestamp, double IntervalMs)> _fpsSamples = new();
     private double _fpsWindowDurationMs;
     private static readonly long FpsWindowTicks = Stopwatch.Frequency;
+    private DateTime _lastFpsDataUtc = DateTime.UtcNow;
     private static readonly HashSet<string> NonRenderingShellProcesses = new(StringComparer.OrdinalIgnoreCase)
     {
         "explorer",
@@ -100,7 +101,6 @@ public partial class MainWindow : Window
     {
         public required TextBlock Block { get; init; }
         public required string Label { get; init; }
-        public bool AlwaysVisible { get; init; }
         public DateTime LastSeenUtc { get; set; } = DateTime.MinValue;
         public bool IsRevealed { get; set; }
         public bool IsPending { get; set; }
@@ -108,7 +108,8 @@ public partial class MainWindow : Window
 
     private readonly Dictionary<string, MetricState> _metrics = new();
     private static readonly TimeSpan MetricTimeout = TimeSpan.FromMinutes(5);
-    private static readonly TimeSpan FpsDataTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan FpsAverageTimeout = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan FpsCategoryTimeout = TimeSpan.FromSeconds(5);
     private HwndSource? _source;
     private bool _isStopping;
     private bool _isFullReloading;
@@ -129,7 +130,9 @@ public partial class MainWindow : Window
 
         InitializeMetricStates();
         LoadSettings();
-        SetFpsStatus("—");
+        SetText(FpsAvg, "FPS AVG", "—");
+        SetText(FpsMax, "FPS MAX", "—");
+        SetText(FpsMin, "FPS MIN", "—");
 
         Loaded += OnLoaded;
         SizeChanged += (_, _) => ApplyOverlayPosition();
@@ -151,7 +154,7 @@ public partial class MainWindow : Window
 
     private void InitializeMetricStates()
     {
-        _metrics["FPS AVG"] = new() { Block = FpsAvg, Label = "FPS AVG", AlwaysVisible = true };
+        _metrics["FPS AVG"] = new() { Block = FpsAvg, Label = "FPS AVG" };
         _metrics["FPS MAX"] = new() { Block = FpsMax, Label = "FPS MAX" };
         _metrics["FPS MIN"] = new() { Block = FpsMin, Label = "FPS MIN" };
         _metrics["CPU"] = new() { Block = CpuLoad, Label = "CPU" };
@@ -165,6 +168,7 @@ public partial class MainWindow : Window
     {
         if (!_metrics.TryGetValue(label, out var metric)) return;
         metric.LastSeenUtc = DateTime.UtcNow;
+        if (label == "FPS AVG") _lastFpsDataUtc = metric.LastSeenUtc;
         metric.Block.Tag = value;
         if (revealImmediately)
         {
@@ -183,20 +187,17 @@ public partial class MainWindow : Window
     private void RefreshMetricVisibility()
     {
         var now = DateTime.UtcNow;
+        var fpsAge = now - _lastFpsDataUtc;
+        var showFpsCategory = fpsAge <= FpsCategoryTimeout;
         foreach (var metric in _metrics.Values)
         {
-            if (metric.AlwaysVisible)
+            if (metric.Label.StartsWith("FPS ", StringComparison.Ordinal))
             {
-                if (metric.LastSeenUtc != DateTime.MinValue && now - metric.LastSeenUtc > FpsDataTimeout)
-                {
-                    metric.LastSeenUtc = DateTime.MinValue;
-                    metric.Block.Tag = null;
-                    SetText(metric.Block, metric.Label, "—");
-                }
-
-                metric.IsRevealed = true;
+                metric.IsRevealed = showFpsCategory;
                 metric.IsPending = false;
-                metric.Block.Visibility = Visibility.Visible;
+                metric.Block.Visibility = showFpsCategory ? Visibility.Visible : Visibility.Collapsed;
+                if (metric.Label == "FPS AVG" && showFpsCategory && fpsAge > FpsAverageTimeout)
+                    SetText(metric.Block, metric.Label, "—");
                 continue;
             }
 
@@ -230,6 +231,9 @@ public partial class MainWindow : Window
         var now = DateTime.UtcNow;
         foreach (var metric in _metrics.Values)
         {
+            if (metric.Label.StartsWith("FPS ", StringComparison.Ordinal))
+                continue;
+
             if (metric.LastSeenUtc != DateTime.MinValue && now - metric.LastSeenUtc <= MetricTimeout)
             {
                 metric.IsRevealed = true;
@@ -240,15 +244,9 @@ public partial class MainWindow : Window
         RefreshMetricVisibility();
     }
 
-    private void SetFpsStatus(string value)
+    private void SetFpsStatus()
     {
-        var metric = _metrics["FPS AVG"];
-        metric.LastSeenUtc = DateTime.MinValue;
-        metric.Block.Tag = null;
-        metric.IsRevealed = true;
-        metric.IsPending = false;
-        SetText(metric.Block, metric.Label, value);
-        metric.Block.Visibility = Visibility.Visible;
+        SetText(FpsAvg, "FPS AVG", "—");
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -292,7 +290,8 @@ public partial class MainWindow : Window
         _timer.Start();
 
         foreach (var metric in _metrics.Values)
-            metric.Block.Visibility = metric.AlwaysVisible ? Visibility.Visible : Visibility.Collapsed;
+            if (!metric.Label.StartsWith("FPS ", StringComparison.Ordinal))
+                metric.Block.Visibility = Visibility.Collapsed;
         RefreshMetricVisibility();
     }
 
@@ -579,7 +578,7 @@ public partial class MainWindow : Window
             "GPU TEMP: Graphics processor temperature.\n\n" +
             "PURPLE BORDER: A full overlay reload is in progress.\n" +
             "GREEN BORDER: FPS capture is starting or waiting for FPS data.\n\n" +
-            "FPS AVG stays visible. Its last value clears after five seconds without supported app frame data and shows — while waiting. Other unavailable readings are hidden; sensor readings with no updates for five minutes are hidden again.";
+            "After three seconds without frame data, FPS AVG shows — while MAX and MIN keep their last values. After five seconds, the entire FPS category is hidden. Capture errors show — instead of an error message.";
         System.Windows.MessageBox.Show(help, "Performance Overlay – Help", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
@@ -613,6 +612,7 @@ public partial class MainWindow : Window
         foreach (var metric in _metrics.Values)
             if (metric.Block.Tag is string value && !string.IsNullOrEmpty(value))
                 SetText(metric.Block, metric.Label, value);
+        RefreshMetricVisibility();
         OverlayBackground.BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromArgb(150, color.R, color.G, color.B));
         SaveSettings();
         if (_trayMenu is not null)
@@ -753,13 +753,15 @@ public partial class MainWindow : Window
 
             foreach (var metric in _metrics.Values)
             {
+                if (metric.Label.StartsWith("FPS ", StringComparison.Ordinal))
+                    continue;
+
                 metric.LastSeenUtc = DateTime.MinValue;
                 metric.IsRevealed = true;
                 metric.IsPending = false;
                 metric.Block.Tag = null;
-                metric.Block.Visibility = metric.AlwaysVisible ? Visibility.Visible : Visibility.Collapsed;
+                metric.Block.Visibility = Visibility.Collapsed;
             }
-            SetFpsStatus("—");
 
             lock (_fpsLock)
             {
@@ -1037,7 +1039,6 @@ public partial class MainWindow : Window
     private void StartPresentMon()
     {
         _fpsReceived = false;
-        SetFpsStatus("—");
         if (!_isFullReloading) StartFpsBorderAnimation();
         var exe = Path.Combine(
             AppContext.BaseDirectory,
@@ -1046,7 +1047,7 @@ public partial class MainWindow : Window
 
         if (!File.Exists(exe))
         {
-            SetFpsStatus("PresentMon not found");
+            SetFpsStatus();
 
             return;
         }
@@ -1070,7 +1071,7 @@ public partial class MainWindow : Window
 
             if (presentMon is null)
             {
-                SetFpsStatus("Not started");
+                SetFpsStatus();
                 return;
             }
 
@@ -1087,7 +1088,7 @@ public partial class MainWindow : Window
                         Dispatcher.Invoke(() =>
                         {
                             if (ReferenceEquals(_presentMon, presentMon) && !_fpsReceived)
-                                SetFpsStatus("Capture error");
+                                SetFpsStatus();
                         }
                         );
                     }
@@ -1097,7 +1098,7 @@ public partial class MainWindow : Window
         }
         catch
         {
-            SetFpsStatus("Capture error");
+            SetFpsStatus();
         }
     }
 
@@ -1243,7 +1244,7 @@ public partial class MainWindow : Window
                 Dispatcher.Invoke(() =>
                 {
                     if (ReferenceEquals(_presentMon, presentMon) && !_fpsReceived)
-                        SetFpsStatus("Capture stopped");
+                        SetFpsStatus();
                 });
             }
             catch { }
