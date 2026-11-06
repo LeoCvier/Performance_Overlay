@@ -77,6 +77,7 @@ public partial class MainWindow : Window
     };
 
     private Process? _presentMon;
+    private int[] _fpsTargetProcessIds = Array.Empty<int>();
     private readonly object _fpsLock = new();
     private readonly Queue<(long Timestamp, double IntervalMs)> _fpsSamples = new();
     private double _fpsWindowDurationMs;
@@ -892,6 +893,8 @@ public partial class MainWindow : Window
                 if (targetPid != _foregroundProcessId)
                     ChangeFpsTarget(targetPid);
             }
+            if (_foregroundProcessId != 0)
+                RefreshFpsTargetProcessIds();
 
             float? cpuLoad = null;
             float? cpuTemp = null;
@@ -956,6 +959,7 @@ public partial class MainWindow : Window
     private void ChangeFpsTarget(int processId)
     {
         _foregroundProcessId = processId;
+        RefreshFpsTargetProcessIds();
         _fpsReceived = false;
         _lastFpsDataUtc = DateTime.UtcNow;
         lock (_fpsLock)
@@ -970,6 +974,53 @@ public partial class MainWindow : Window
         SetText(FpsMax, "FPS MAX", "—");
         SetText(FpsMin, "FPS MIN", "—");
         RefreshMetricVisibility();
+    }
+
+    private void RefreshFpsTargetProcessIds()
+    {
+        var rootPid = Volatile.Read(ref _foregroundProcessId);
+        if (rootPid == 0)
+        {
+            Volatile.Write(ref _fpsTargetProcessIds, Array.Empty<int>());
+            return;
+        }
+
+        var parents = new Dictionary<int, int>();
+        var snapshot = CreateToolhelp32Snapshot(Th32csSnapProcess, 0);
+        if (snapshot == new IntPtr(-1))
+        {
+            Volatile.Write(ref _fpsTargetProcessIds, new[] { rootPid });
+            return;
+        }
+
+        try
+        {
+            var entry = new ProcessEntry32 { Size = (uint)Marshal.SizeOf<ProcessEntry32>() };
+            if (Process32First(snapshot, ref entry))
+            {
+                do
+                {
+                    parents[unchecked((int)entry.ProcessId)] = unchecked((int)entry.ParentProcessId);
+                    entry.Size = (uint)Marshal.SizeOf<ProcessEntry32>();
+                } while (Process32Next(snapshot, ref entry));
+            }
+        }
+        finally
+        {
+            CloseHandle(snapshot);
+        }
+
+        var descendants = new HashSet<int> { rootPid };
+        bool changed;
+        do
+        {
+            changed = false;
+            foreach (var pair in parents)
+                if (descendants.Contains(pair.Value) && descendants.Add(pair.Key))
+                    changed = true;
+        } while (changed);
+
+        Volatile.Write(ref _fpsTargetProcessIds, descendants.ToArray());
     }
 
     private static bool IsNonRenderingShellProcess(uint processId)
@@ -1195,8 +1246,8 @@ public partial class MainWindow : Window
                 if (processColumn >= 0 && processColumn < values.Length &&
                     int.TryParse(values[processColumn], out var rowPid))
                 {
-                    var targetProcessId = Volatile.Read(ref _foregroundProcessId);
-                    if (rowPid == Environment.ProcessId || targetProcessId == 0 || rowPid != targetProcessId)
+                    var targetProcessIds = Volatile.Read(ref _fpsTargetProcessIds);
+                    if (rowPid == Environment.ProcessId || !targetProcessIds.Contains(rowPid))
                         continue;
                 }
 
@@ -1465,6 +1516,36 @@ public partial class MainWindow : Window
         public ulong AvailVirtual;
         public ulong AvailExtendedVirtual;
     }
+
+    private const uint Th32csSnapProcess = 0x00000002;
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct ProcessEntry32
+    {
+        public uint Size;
+        public uint Usage;
+        public uint ProcessId;
+        public UIntPtr DefaultHeapId;
+        public uint ModuleId;
+        public uint Threads;
+        public uint ParentProcessId;
+        public int BasePriority;
+        public uint Flags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+        public string ExeFile;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr CreateToolhelp32Snapshot(uint flags, uint processId);
+
+    [DllImport("kernel32.dll", EntryPoint = "Process32FirstW", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool Process32First(IntPtr snapshot, ref ProcessEntry32 entry);
+
+    [DllImport("kernel32.dll", EntryPoint = "Process32NextW", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool Process32Next(IntPtr snapshot, ref ProcessEntry32 entry);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool CloseHandle(IntPtr handle);
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool GlobalMemoryStatusEx(
