@@ -13,7 +13,7 @@ FPS values follow the focused window. After five seconds without new frame data,
 
 ## Installation
 
-Download `PerformanceOverlay-Setup-v1.1.20-x64.exe` from **Releases** and run it. The setup installs the application with its required components. You do **not** need to install the .NET runtime/SDK or a separate FPS tool.
+Download `PerformanceOverlay-Setup-v1.1.1-x64.exe` from **Releases** and run it. The setup installs the application with its required components. You do **not** need to install the .NET runtime/SDK or a separate FPS tool.
 
 Windows User Account Control will ask for administrator approval during installation. The application also runs with elevated permissions for hardware and FPS capture. The setup configures the application to start automatically when the installing Windows account signs in. That account must have administrator privileges for elevated startup.
 
@@ -46,4 +46,5 @@ The overlay reads CPU and GPU sensors through LibreHardwareMonitor and gets RAM 
 FPS is reported per supported foreground app, not as one combined value for the whole desktop. The minimum and maximum track the current session. A green animated border appears while FPS capture is waiting for data. The tray menu displays the installed version. A purple border appears while **Reload everything** is running.
 
 Plugins are stored under `%LOCALAPPDATA%\PerformanceOverlay\Plugins` and load automatically when the application starts. See [PLUGINS.md](PLUGINS.md) for the plugin interface and installation details.
+
 

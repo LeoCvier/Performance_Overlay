@@ -2,7 +2,7 @@
 
 This file records the published versions of PerformanceOverlay and the changes included in each release.
 
-## [1.1.20] - 2026-11-06
+## [1.1.1] - 2026-11-06
 
 - Replaced the external PresentMon process with in-process Windows ETW capture for DirectX presentation events.
 - Track frame data for the focused application and its process tree, including supported desktop shell presentation activity.
@@ -26,6 +26,7 @@ This file records the published versions of PerformanceOverlay and the changes i
 - Added overlay color and position controls.
 - Added a self-contained Windows x64 installer.
 
-[1.1.20]: https://github.com/LeoCvier/Performance_Overlay/releases/tag/V1.1.20
+[1.1.1]: https://github.com/LeoCvier/Performance_Overlay/releases/tag/V1.1.1
 [1.1.0]: https://github.com/LeoCvier/Performance_Overlay/releases/tag/V1.1.0
 [1.0.0]: https://github.com/LeoCvier/Performance_Overlay/releases/tag/V1.0.0
+
