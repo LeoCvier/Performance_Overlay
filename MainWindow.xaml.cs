@@ -879,11 +879,19 @@ public partial class MainWindow : Window
                 out var pid
             );
 
-            // The overlay can briefly become the foreground window when its tray menu
-            // triggers a reload. Keep monitoring the last real foreground application
-            // instead of filtering PresentMon output down to the overlay process.
-            if (pid != 0 && pid != (uint)Environment.ProcessId && !IsNonRenderingShellProcess(pid))
-                _foregroundProcessId = unchecked((int)pid);
+            // Follow the window that currently has focus. Clear the target on the
+            // desktop/shell so FPS from the previously focused app is never shown as
+            // if it belonged to the current window.
+            // Reloading from the tray can briefly focus this overlay. Keep the
+            // previously selected app in that case so reload does not reset FPS.
+            if (pid != (uint)Environment.ProcessId)
+            {
+                var targetPid = pid != 0 && !IsNonRenderingShellProcess(pid)
+                    ? unchecked((int)pid)
+                    : 0;
+                if (targetPid != _foregroundProcessId)
+                    ChangeFpsTarget(targetPid);
+            }
 
             float? cpuLoad = null;
             float? cpuTemp = null;
@@ -943,6 +951,25 @@ public partial class MainWindow : Window
             if (gpuTemp is not null) UpdateMetric("GPU TEMP", $"{gpuTemp.Value:0}°C");
         }
         catch { }
+    }
+
+    private void ChangeFpsTarget(int processId)
+    {
+        _foregroundProcessId = processId;
+        _fpsReceived = false;
+        _lastFpsDataUtc = DateTime.UtcNow;
+        lock (_fpsLock)
+        {
+            _maxFps = 0;
+            _minFps = double.PositiveInfinity;
+        }
+        _fpsSamples.Clear();
+        _fpsWindowDurationMs = 0;
+
+        SetText(FpsAvg, "FPS AVG", "—");
+        SetText(FpsMax, "FPS MAX", "—");
+        SetText(FpsMin, "FPS MIN", "—");
+        RefreshMetricVisibility();
     }
 
     private static bool IsNonRenderingShellProcess(uint processId)
