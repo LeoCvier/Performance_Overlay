@@ -53,7 +53,6 @@ public partial class MainWindow : Window
     private string SettingsPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PerformanceOverlay", "settings.json");
     private string PluginDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PerformanceOverlay", "Plugins");
     private string _overlayPosition = "Top Left";
-    private Forms.ToolStripMenuItem? _positionMenu;
     private Forms.ToolStripMenuItem? _pluginMenu;
     private readonly OverlayPluginManager _pluginManager = new();
     private readonly List<LoadedOverlayPlugin> _loadedPlugins = new();
@@ -117,6 +116,7 @@ public partial class MainWindow : Window
     private bool _resetFlash;
     private Forms.NotifyIcon? _trayIcon;
     private Forms.ContextMenuStrip? _trayMenu;
+    private CoreSettingsWindow? _coreSettingsWindow;
 
     private readonly DispatcherTimer _resetFlashTimer = new()
     {
@@ -213,11 +213,22 @@ public partial class MainWindow : Window
 
         foreach (var metric in _metrics.Values)
         {
+            string metricKey = metric.Label.StartsWith("FPS ", StringComparison.Ordinal)
+                ? metric.Label
+                : metric.Label switch
+                {
+                    "CPU LOAD" => "CPU",
+                    "RAM LOAD" => "RAM",
+                    "GPU LOAD" => "GPU",
+                    _ => metric.Label
+                };
+            bool enabledByPlugins = _loadedPlugins.All(plugin =>
+                plugin.Instance is not IOverlayMetricVisibilityFilter filter || filter.IsMetricEnabled(metricKey));
             if (metric.Label.StartsWith("FPS ", StringComparison.Ordinal))
             {
                 metric.IsRevealed = showFpsValues || showFpsDashes;
                 metric.IsPending = false;
-                metric.Block.Visibility = metric.IsRevealed ? Visibility.Visible : Visibility.Collapsed;
+                metric.Block.Visibility = metric.IsRevealed && enabledByPlugins ? Visibility.Visible : Visibility.Collapsed;
                 continue;
             }
 
@@ -229,7 +240,7 @@ public partial class MainWindow : Window
             }
             else
             {
-                metric.Block.Visibility = metric.IsRevealed ? Visibility.Visible : Visibility.Collapsed;
+                metric.Block.Visibility = metric.IsRevealed && enabledByPlugins ? Visibility.Visible : Visibility.Collapsed;
             }
         }
 
@@ -333,25 +344,10 @@ public partial class MainWindow : Window
             };
 
             _trayMenu = new Forms.ContextMenuStrip();
+            _trayMenu.Items.Add("Settings…", null, (_, _) => OpenCoreSettings());
             _trayMenu.Items.Add("Show overlay", null, (_, _) => ShowOverlayFromTray());
             _trayMenu.Items.Add("Hide overlay", null, (_, _) => HideOverlayToTray());
             _trayMenu.Items.Add(new Forms.ToolStripSeparator());
-
-            var colorMenu = new Forms.ToolStripMenuItem("Overlay color");
-            AddColorOption(colorMenu, "Red", System.Windows.Media.Colors.Red);
-            AddColorOption(colorMenu, "Green", System.Windows.Media.Colors.LimeGreen);
-            AddColorOption(colorMenu, "Blue", System.Windows.Media.Colors.DodgerBlue);
-            AddColorOption(colorMenu, "Turquoise", System.Windows.Media.Color.FromRgb(53, 221, 240));
-            AddColorOption(colorMenu, "Orange", System.Windows.Media.Colors.DarkOrange);
-            AddColorOption(colorMenu, "Black", System.Windows.Media.Colors.Black);
-            AddColorOption(colorMenu, "White", System.Windows.Media.Colors.White);
-            _trayMenu.Items.Add(colorMenu);
-
-            _positionMenu = new Forms.ToolStripMenuItem("Overlay position");
-            AddPositionOption("Top Left");
-            AddPositionOption("Top Center");
-            AddPositionOption("Top Right");
-            _trayMenu.Items.Add(_positionMenu);
 
             _pluginMenu = new Forms.ToolStripMenuItem("Plugins");
             _pluginMenu.DropDownOpening += (_, _) => RefreshPluginMenu();
@@ -371,10 +367,9 @@ public partial class MainWindow : Window
             _trayMenu.Items.Add(new Forms.ToolStripSeparator());
             _trayMenu.Items.Add("Exit", null, (_, _) => StopOverlayAnimation());
             _trayIcon.ContextMenuStrip = _trayMenu;
-            _trayIcon.DoubleClick += (_, _) =>
+            _trayIcon.MouseClick += (_, e) =>
             {
-                if (IsVisible) HideOverlayToTray();
-                else ShowOverlayFromTray();
+                if (e.Button == Forms.MouseButtons.Left) OpenCoreSettings();
             };
         }
         catch (Exception ex)
@@ -555,26 +550,11 @@ public partial class MainWindow : Window
         Process.Start(new ProcessStartInfo(PluginCatalogUrl) { UseShellExecute = true });
     }
 
-    private void AddPositionOption(string position)
-    {
-        if (_positionMenu is null) return;
-        var item = new Forms.ToolStripMenuItem(position)
-        {
-            Checked = string.Equals(position, _overlayPosition, StringComparison.OrdinalIgnoreCase),
-            CheckOnClick = false
-        };
-        item.Click += (_, _) => SetOverlayPosition(position);
-        _positionMenu.DropDownItems.Add(item);
-    }
-
     private void SetOverlayPosition(string position)
     {
         _overlayPosition = position;
         ApplyOverlayPosition();
         SaveSettings();
-        if (_positionMenu is not null)
-            foreach (Forms.ToolStripMenuItem item in _positionMenu.DropDownItems)
-                item.Checked = item.Text == _overlayPosition;
     }
 
     private void ApplyOverlayPosition()
@@ -590,6 +570,14 @@ public partial class MainWindow : Window
             _ => area.Left + margin
         };
         Top = area.Top + margin;
+        foreach (var plugin in _loadedPlugins)
+            if (plugin.Instance is IOverlayPlacementProvider placement &&
+                placement.TryGetPosition(ActualWidth, ActualHeight, out var left, out var top))
+            {
+                Left = left;
+                Top = top;
+                break;
+            }
     }
 
     private void ShowIndicatorHelp()
@@ -624,13 +612,6 @@ public partial class MainWindow : Window
         if (!_isStopping) Hide();
     }
 
-    private void AddColorOption(Forms.ToolStripMenuItem parent, string name, System.Windows.Media.Color color)
-    {
-        var item = new Forms.ToolStripMenuItem(name) { Checked = color == _accentColor, CheckOnClick = false };
-        item.Click += (_, _) => SetAccentColor(color);
-        parent.DropDownItems.Add(item);
-    }
-
     private void SetAccentColor(System.Windows.Media.Color color)
     {
         _accentColor = color;
@@ -641,19 +622,7 @@ public partial class MainWindow : Window
         RefreshMetricVisibility();
         OverlayBackground.BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromArgb(150, color.R, color.G, color.B));
         SaveSettings();
-        if (_trayMenu is not null)
-        {
-            foreach (Forms.ToolStripItem item in _trayMenu.Items)
-                if (item is Forms.ToolStripMenuItem menu && menu.Text == "Overlay color")
-                    foreach (Forms.ToolStripMenuItem option in menu.DropDownItems)
-                        option.Checked = option.Text == ColorName(color);
-        }
     }
-
-    private static string ColorName(System.Windows.Media.Color c) =>
-        c == System.Windows.Media.Colors.Red ? "Red" : c == System.Windows.Media.Colors.LimeGreen ? "Green" :
-        c == System.Windows.Media.Colors.DodgerBlue ? "Blue" : c == System.Windows.Media.Color.FromRgb(53,221,240) ? "Turquoise" :
-        c == System.Windows.Media.Colors.DarkOrange ? "Orange" : c == System.Windows.Media.Colors.Black ? "Black" : "White";
 
     private void LoadSettings()
     {
@@ -1235,11 +1204,15 @@ public partial class MainWindow : Window
         // Keep the original overlay dimensions while replacing all its text.
         double overlayWidth = Math.Max(1, ActualWidth);
         double overlayHeight = Math.Max(1, ActualHeight);
+        double overlayLeft = Left;
+        double overlayTop = Top;
         SizeToContent = SizeToContent.Manual;
         Width = overlayWidth;
         Height = overlayHeight;
         OverlayBackground.Width = overlayWidth;
         OverlayBackground.Height = overlayHeight;
+        Left = overlayLeft;
+        Top = overlayTop;
 
         OverlayContent.Children.Clear();
         OverlayContent.Orientation = System.Windows.Controls.Orientation.Horizontal;

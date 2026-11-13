@@ -20,10 +20,9 @@ The setup executable is written to `Output\PerformanceOverlay-Setup-x64.exe`.
 
 ## Installer behavior
 
-- Requests administrator permission during installation (UAC).
-- Installs the self-contained overlay to Program Files.
-- The application manifest also requests administrator permission.
-- Registers a Task Scheduler logon task for the installing Windows account with the highest run level, then starts it. This provides elevated autostart without showing a UAC prompt at every normal logon.
+- Installs the self-contained overlay in the current user's Programs folder without requesting elevation.
+- Runs with the signed-in user's permissions (`asInvoker`).
+- Adds a per-user Windows startup entry and removes the older elevated scheduled task when upgrading.
 - Uninstall removes the scheduled task.
 
-The scheduled task is per Windows user. If the account is not an administrator, Windows cannot run the overlay with administrator privileges merely because an administrator approved installation; use an administrator account for the intended elevated autostart.
+Hardware sensor and ETW access can vary by Windows configuration when the process is not elevated.

@@ -1,5 +1,5 @@
 #define MyAppName "PerformanceOverlay"
-#define MyAppVersion "1.1.2"
+#define MyAppVersion "1.1.3"
 #define MyAppPublisher "LeoCvier"
 #define MyAppExeName "PerformanceOverlay.exe"
 
@@ -9,11 +9,11 @@ AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 VersionInfoVersion={#MyAppVersion}.0
 AppPublisher={#MyAppPublisher}
-DefaultDirName={autopf}\{#MyAppName}
+DefaultDirName={localappdata}\Programs\{#MyAppName}
 UsePreviousAppDir=yes
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
-PrivilegesRequired=admin
+PrivilegesRequired=lowest
 ArchitecturesInstallIn64BitMode=x64
 CloseApplications=yes
 RestartApplications=no
@@ -26,8 +26,9 @@ UninstallDisplayIcon={app}\{#MyAppExeName}
 
 [Files]
 Source: "..\Publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "Register-Autostart.ps1"; DestDir: "{app}"; Flags: ignoreversion
-Source: "Unregister-Autostart.ps1"; DestDir: "{app}"; Flags: ignoreversion
+
+[Registry]
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "PerformanceOverlay"; ValueData: """{app}\{#MyAppExeName}"""; Flags: uninsdeletevalue
 
 [Icons]
 Name: "{autoprograms}\PerformanceOverlay"; Filename: "{app}\{#MyAppExeName}"
@@ -36,10 +37,11 @@ Name: "{autodesktop}\PerformanceOverlay"; Filename: "{app}\{#MyAppExeName}"; Tas
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
 
-[Run]
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\Register-Autostart.ps1"""; Flags: runhidden waituntilterminated
-
-[UninstallRun]
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\Unregister-Autostart.ps1"""; Flags: runhidden waituntilterminated; RunOnceId: "RemovePerformanceOverlayTask"
-
-
+[Code]
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ResultCode: Integer;
+begin
+  if CurStep = ssInstall then
+    Exec(ExpandConstant('{sys}\schtasks.exe'), '/Delete /TN "PerformanceOverlay" /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+end;

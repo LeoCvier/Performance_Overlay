@@ -2,6 +2,15 @@
 
 This file records the published versions of PerformanceOverlay and the changes included in each release.
 
+## [1.1.3] - 2026-11-13
+
+- Open a consolidated settings window from a left-click on the tray icon.
+- Preserve the overlay's current screen position for the closing animation.
+- Apply plugin metric visibility within the core refresh loop to prevent disabled values from flashing.
+- Let plugins provide monitor and corner placement through the plugin API.
+- Run with the signed-in user's permissions and use a per-user installer and startup entry.
+- Remove the elevated scheduled-task startup and PowerShell execution-policy bypass from the installer.
+
 ## [1.1.2] - 2026-11-06
 
 - Removed the animated frame around the overlay during FPS capture and reloads.

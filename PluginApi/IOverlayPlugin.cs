@@ -21,3 +21,15 @@ public interface IOverlayPlugin : IDisposable
     /// </summary>
     FrameworkElement CreateView();
 }
+
+/// <summary>Lets a plugin participate in core metric visibility without racing the host refresh loop.</summary>
+public interface IOverlayMetricVisibilityFilter
+{
+    bool IsMetricEnabled(string metricKey);
+}
+
+/// <summary>Allows a plugin to supply the overlay's top-left position after the host computes its default.</summary>
+public interface IOverlayPlacementProvider
+{
+    bool TryGetPosition(double overlayWidth, double overlayHeight, out double left, out double top);
+}

@@ -15,7 +15,7 @@ FPS values follow the focused window. After five seconds without new frame data,
 
 Download `PerformanceOverlay-Setup-v1.1.2-x64.exe` from **Releases** and run it. The setup installs the application with its required components. You do **not** need to install the .NET runtime/SDK or a separate FPS tool.
 
-Windows User Account Control will ask for administrator approval during installation. The application also runs with elevated permissions for hardware and FPS capture. The setup configures the application to start automatically when the installing Windows account signs in. That account must have administrator privileges for elevated startup.
+The setup installs per-user and starts the overlay with the signed-in account's normal permissions. It adds a per-user startup entry. Some hardware readings or FPS capture sources may be unavailable when Windows restricts them to elevated processes.
 
 ## How to use it
 
