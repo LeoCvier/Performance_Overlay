@@ -355,9 +355,9 @@ public partial class MainWindow : Window
             _trayMenu.Items.Add(_pluginMenu);
 
             _trayMenu.Items.Add(Ui("Reload everything"), null, async (_, _) => await ReloadAllAsync());
-            _trayMenu.Items.Add(Ui("Configure hotkeys…"), null, (_, _) => ShowHotkeySettings());
+            _trayMenu.Items.Add(Ui("Configure hotkeys…"), null, (_, _) => OpenCoreSettings("shortcuts"));
             _trayMenu.Items.Add(new Forms.ToolStripSeparator());
-            _trayMenu.Items.Add(Ui("Help"), null, (_, _) => ShowIndicatorHelp());
+            _trayMenu.Items.Add(Ui("Help"), null, (_, _) => OpenCoreSettings("help"));
             _trayMenu.Items.Add(new Forms.ToolStripSeparator());
             var version = typeof(MainWindow).Assembly.GetName().Version;
             var versionItem = new Forms.ToolStripMenuItem(string.Format(Ui("Version {0}"), version?.ToString(3) ?? "unknown"))
@@ -583,20 +583,7 @@ public partial class MainWindow : Window
     }
 
     private void ShowIndicatorHelp()
-    {
-        string help =
-            Ui("PERFORMANCE OVERLAY – INDICATOR GUIDE\n\n") +
-            Ui("GREEN DOT: At least one sensor has a new reading available. Press the reload hotkey to reveal available readings.\n\n") +
-            Ui("FPS AVG: Current average frames per second reported by Windows graphics events for the captured application.\n") +
-            Ui("FPS MAX / FPS MIN: Highest and lowest FPS recorded during the current session.\n\n") +
-            Ui("CPU LOAD: Processor utilization.\n") +
-            Ui("CPU TEMP: Processor temperature, when supported by the hardware.\n") +
-            Ui("RAM LOAD: System memory usage.\n") +
-            Ui("GPU LOAD: Graphics processor utilization.\n") +
-            Ui("GPU TEMP: Graphics processor temperature.\n\n") +
-            Ui("After a focus change, FPS fields show — while waiting for frame data. If no data arrives within five seconds, the dashes remain for five seconds and the FPS fields hide until data returns. After active capture goes quiet, the same five-second dash period starts after five seconds without a frame.");
-        System.Windows.MessageBox.Show(help, Ui("Performance Overlay – Help"), MessageBoxButton.OK, MessageBoxImage.Information);
-    }
+        => OpenCoreSettings("help");
 
     private void ShowOverlayFromTray()
     {

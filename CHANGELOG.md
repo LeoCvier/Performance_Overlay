@@ -2,6 +2,11 @@
 
 This file records the published versions of PerformanceOverlay and the changes included in each release.
 
+## [1.1.7] - 2026-11-15
+
+- Add in-app Help and Shortcuts pages with clearer guidance and direct hotkey editing.
+- Route tray Help and Configure hotkeys actions to their matching settings pages.
+
 ## [1.1.6] - 2026-11-15
 
 - Add French, Japanese and Simplified Chinese as menu languages.

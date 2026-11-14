@@ -95,6 +95,13 @@ internal static class UiText
         ["Save"] = "Speichern",
         ["Cancel"] = "Abbrechen",
         ["Close"] = "Schließen",
+        ["Click a shortcut field and press a combination with at least one modifier key. Press Escape to clear a shortcut."] = "Klicke auf ein Tastenkürzel und drücke eine Kombination mit mindestens einer Zusatztaste. Mit Esc wird es gelöscht.",
+        ["Restore defaults"] = "Standardwerte wiederherstellen",
+        ["Clear the current session's FPS high and low values"] = "Höchste und niedrigste FPS des aktuellen Durchlaufs zurücksetzen",
+        ["Restart sensors and reload plugins"] = "Sensoren neu starten und Plugins neu laden",
+        ["Click here, then press a key combination"] = "Hier klicken und eine Tastenkombination drücken",
+        ["Sensors"] = "Sensoren", ["FPS display behavior"] = "FPS-Anzeigeverhalten", ["FPS"] = "FPS",
+        ["Ctrl"] = "Strg", ["Shift"] = "Umschalt",
     };
 
     private static readonly IReadOnlyDictionary<string, string> French = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -124,7 +131,10 @@ internal static class UiText
         ["CPU LOAD: Processor utilization.\n"] = "CPU LOAD : utilisation du processeur.\n", ["CPU TEMP: Processor temperature, when supported by the hardware.\n"] = "CPU TEMP : température du processeur, si le matériel la prend en charge.\n",
         ["RAM LOAD: System memory usage.\n"] = "RAM LOAD : utilisation de la mémoire système.\n", ["GPU LOAD: Graphics processor utilization.\n"] = "GPU LOAD : utilisation du processeur graphique.\n", ["GPU TEMP: Graphics processor temperature.\n\n"] = "GPU TEMP : température du processeur graphique.\n\n",
         ["After a focus change, FPS fields show — while waiting for frame data. If no data arrives within five seconds, the dashes remain for five seconds and the FPS fields hide until data returns. After active capture goes quiet, the same five-second dash period starts after five seconds without a frame."] = "Après un changement de fenêtre active, les champs FPS affichent — en attendant les images. Sans données pendant cinq secondes, les tirets restent affichés cinq secondes supplémentaires, puis les champs se masquent jusqu’au retour des données. Après cinq secondes sans nouvelle image, la même attente commence.",
-        ["Save"] = "Enregistrer", ["Cancel"] = "Annuler", ["Close"] = "Fermer", ["No plugins loaded"] = "Aucune extension chargée", ["No plugins loaded yet"] = "Aucune extension chargée pour l’instant"
+        ["Save"] = "Enregistrer", ["Cancel"] = "Annuler", ["Close"] = "Fermer", ["No plugins loaded"] = "Aucune extension chargée", ["No plugins loaded yet"] = "Aucune extension chargée pour l’instant",
+        ["Click a shortcut field and press a combination with at least one modifier key. Press Escape to clear a shortcut."] = "Cliquez sur un raccourci et saisissez une combinaison avec au moins une touche de modification. Échap efface le raccourci.",
+        ["Restore defaults"] = "Rétablir les valeurs par défaut", ["Clear the current session's FPS high and low values"] = "Effacer les valeurs FPS minimale et maximale de la session", ["Restart sensors and reload plugins"] = "Redémarrer les capteurs et recharger les extensions",
+        ["Click here, then press a key combination"] = "Cliquez ici puis saisissez un raccourci", ["Sensors"] = "Capteurs", ["FPS display behavior"] = "Affichage des FPS", ["FPS"] = "FPS", ["Ctrl"] = "Ctrl", ["Alt"] = "Alt", ["Shift"] = "Maj"
     };
 
     private static readonly IReadOnlyDictionary<string, string> Japanese = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -154,7 +164,10 @@ internal static class UiText
         ["CPU LOAD: Processor utilization.\n"] = "CPU LOAD: プロセッサー使用率。\n", ["CPU TEMP: Processor temperature, when supported by the hardware.\n"] = "CPU TEMP: 対応ハードウェアでのプロセッサー温度。\n",
         ["RAM LOAD: System memory usage.\n"] = "RAM LOAD: メモリー使用率。\n", ["GPU LOAD: Graphics processor utilization.\n"] = "GPU LOAD: グラフィックスプロセッサー使用率。\n", ["GPU TEMP: Graphics processor temperature.\n\n"] = "GPU TEMP: グラフィックスプロセッサー温度。\n\n",
         ["After a focus change, FPS fields show — while waiting for frame data. If no data arrives within five seconds, the dashes remain for five seconds and the FPS fields hide until data returns. After active capture goes quiet, the same five-second dash period starts after five seconds without a frame."] = "フォーカス変更後、フレームデータを待つ間 FPS 欄は — を表示します。5秒以内にデータが届かない場合、さらに5秒間 — を表示してから、データが戻るまで FPS 欄を隠します。フレームが5秒間届かない場合も同様に表示します。",
-        ["Save"] = "保存", ["Cancel"] = "キャンセル", ["Close"] = "閉じる", ["No plugins loaded"] = "プラグインはありません", ["No plugins loaded yet"] = "プラグインはまだありません"
+        ["Save"] = "保存", ["Cancel"] = "キャンセル", ["Close"] = "閉じる", ["No plugins loaded"] = "プラグインはありません", ["No plugins loaded yet"] = "プラグインはまだありません",
+        ["Click a shortcut field and press a combination with at least one modifier key. Press Escape to clear a shortcut."] = "ショートカット欄をクリックして、修飾キーを含む組み合わせを押してください。Esc キーで解除できます。",
+        ["Restore defaults"] = "既定値に戻す", ["Clear the current session's FPS high and low values"] = "現在のセッションの FPS 最大値と最小値をリセット", ["Restart sensors and reload plugins"] = "センサーを再起動してプラグインを再読み込み",
+        ["Click here, then press a key combination"] = "ここをクリックしてキーの組み合わせを押してください", ["Sensors"] = "センサー", ["FPS display behavior"] = "FPS の表示動作", ["FPS"] = "FPS", ["Ctrl"] = "Ctrl", ["Alt"] = "Alt", ["Shift"] = "Shift"
     };
 
     private static readonly IReadOnlyDictionary<string, string> Chinese = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -184,7 +197,10 @@ internal static class UiText
         ["CPU LOAD: Processor utilization.\n"] = "CPU LOAD：处理器使用率。\n", ["CPU TEMP: Processor temperature, when supported by the hardware.\n"] = "CPU TEMP：处理器温度（硬件支持时）。\n",
         ["RAM LOAD: System memory usage.\n"] = "RAM LOAD：系统内存使用率。\n", ["GPU LOAD: Graphics processor utilization.\n"] = "GPU LOAD：图形处理器使用率。\n", ["GPU TEMP: Graphics processor temperature.\n\n"] = "GPU TEMP：图形处理器温度。\n\n",
         ["After a focus change, FPS fields show — while waiting for frame data. If no data arrives within five seconds, the dashes remain for five seconds and the FPS fields hide until data returns. After active capture goes quiet, the same five-second dash period starts after five seconds without a frame."] = "切换焦点后，FPS 字段会显示 — 并等待帧数据。如果五秒内没有数据，短横线会再显示五秒，随后隐藏 FPS 字段，直到数据恢复。连续五秒没有新帧时也会进入相同的等待状态。",
-        ["Save"] = "保存", ["Cancel"] = "取消", ["Close"] = "关闭", ["No plugins loaded"] = "没有已加载的插件", ["No plugins loaded yet"] = "尚未加载插件"
+        ["Save"] = "保存", ["Cancel"] = "取消", ["Close"] = "关闭", ["No plugins loaded"] = "没有已加载的插件", ["No plugins loaded yet"] = "尚未加载插件",
+        ["Click a shortcut field and press a combination with at least one modifier key. Press Escape to clear a shortcut."] = "点击快捷键输入框，然后按下至少包含一个修饰键的组合键。按 Esc 可清除快捷键。",
+        ["Restore defaults"] = "恢复默认值", ["Clear the current session's FPS high and low values"] = "清除当前会话的 FPS 最高和最低值", ["Restart sensors and reload plugins"] = "重启传感器并重新加载插件",
+        ["Click here, then press a key combination"] = "点击此处，然后按下组合键", ["Sensors"] = "传感器", ["FPS display behavior"] = "FPS 显示方式", ["FPS"] = "FPS", ["Ctrl"] = "Ctrl", ["Alt"] = "Alt", ["Shift"] = "Shift"
     };
 
     public static bool IsSupported(string language) => language is "English" or "German" or "French" or "Japanese" or "Chinese";

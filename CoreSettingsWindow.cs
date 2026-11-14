@@ -15,11 +15,18 @@ namespace PerformanceOverlay;
 
 public partial class MainWindow
 {
-    private void OpenCoreSettings()
+    private void OpenCoreSettings() => OpenCoreSettings("general");
+
+    private void OpenCoreSettings(string page)
     {
         if (_isStopping) return;
-        if (_coreSettingsWindow is { IsVisible: true }) { _coreSettingsWindow.Activate(); return; }
-        _coreSettingsWindow = new CoreSettingsWindow(this) { Owner = this };
+        if (_coreSettingsWindow is { IsVisible: true })
+        {
+            _coreSettingsWindow.Navigate(page);
+            _coreSettingsWindow.Activate();
+            return;
+        }
+        _coreSettingsWindow = new CoreSettingsWindow(this, page) { Owner = this };
         _coreSettingsWindow.Closed += (_, _) => _coreSettingsWindow = null;
         _coreSettingsWindow.Show();
     }
@@ -34,6 +41,10 @@ public partial class MainWindow
         private Grid? _pages;
         private UIElement? _generalPage;
         private UIElement? _pluginsPage;
+        private UIElement? _shortcutsPage;
+        private UIElement? _helpPage;
+        private readonly Dictionary<int, HotkeyBinding> _hotkeyDraft = new();
+        private readonly Dictionary<int, System.Windows.Controls.TextBox> _hotkeyInputs = new();
 
         private static readonly WpfColor Bg = WpfColor.FromRgb(14, 18, 27);
         private static readonly WpfColor Surface = WpfColor.FromRgb(23, 29, 42);
@@ -41,7 +52,7 @@ public partial class MainWindow
         private static readonly WpfColor Muted = WpfColor.FromRgb(157, 169, 190);
         private static readonly WpfColor Accent = WpfColor.FromRgb(57, 215, 230);
 
-        public CoreSettingsWindow(MainWindow host)
+        public CoreSettingsWindow(MainWindow host, string initialPage)
         {
             _host = host;
             Title = L("Performance Overlay");
@@ -90,9 +101,15 @@ public partial class MainWindow
             _pages = new Grid();
             _generalPage = contentGrid;
             _pluginsPage = BuildPluginsPage();
+            _shortcutsPage = BuildShortcutsPage();
+            _helpPage = BuildHelpPage();
             _pages.Children.Add(_generalPage);
             _pluginsPage.Visibility = Visibility.Collapsed;
             _pages.Children.Add(_pluginsPage);
+            _shortcutsPage.Visibility = Visibility.Collapsed;
+            _pages.Children.Add(_shortcutsPage);
+            _helpPage.Visibility = Visibility.Collapsed;
+            _pages.Children.Add(_helpPage);
             main.Children.Add(_pages);
 
             left.Children.Add(SectionTitle(L("Appearance"), L("Adjust how the overlay looks on screen")));
@@ -104,8 +121,8 @@ public partial class MainWindow
             var actions = Card();
             var actionStack = new StackPanel();
             actionStack.Children.Add(ActionRow(L("Reload everything"), L("Restart sensor and plugin data"), async () => await _host.ReloadAllAsync()));
-            actionStack.Children.Add(ActionRow(L("Configure hotkeys"), L("Set reset, reload and exit shortcuts"), _host.ShowHotkeySettings));
-            actionStack.Children.Add(ActionRow(L("Help and indicator guide"), L("What the overlay values mean"), _host.ShowIndicatorHelp));
+            actionStack.Children.Add(ActionRow(L("Configure hotkeys"), L("Set reset, reload and exit shortcuts"), () => Navigate("shortcuts")));
+            actionStack.Children.Add(ActionRow(L("Help and indicator guide"), L("What the overlay values mean"), () => Navigate("help")));
             actionStack.Children.Add(ActionRow(L("Discover plugins"), L("Browse available extensions"), OpenPluginCatalog));
             actionStack.Children.Add(ActionRow(L("Open plugins folder"), L("Manage installed plugin files"), () => _host.OpenPluginFolder()));
             actionStack.Children.Add(ActionRow(L("Exit overlay"), L("Close the overlay"), () => _host.StopOverlayAnimation(), danger: true));
@@ -118,15 +135,16 @@ public partial class MainWindow
 
             NavButton(sidebar, "◈   " + L("General"), true, ShowGeneralPage);
             NavButton(sidebar, "▦   " + L("Plugins"), false, ShowPluginsPage);
-            NavButton(sidebar, "⌘   " + L("Shortcuts & actions"), false, () => _host.ShowHotkeySettings());
+            NavButton(sidebar, "⌘   " + L("Shortcuts & actions"), false, () => Navigate("shortcuts"));
             var fill = new Border { Height = 1, Background = Brush(Surface2), Margin = new Thickness(18, 17, 18, 13) };
             sidebar.Children.Add(fill);
             sidebar.Children.Add(new TextBlock { Text = L("TRAY MENU"), Foreground = Brush(Muted), FontSize = 10, FontWeight = FontWeights.Bold, Margin = new Thickness(22, 0, 0, 8) });
             NavButton(sidebar, "↻   " + L("Reload everything"), false, async () => await _host.ReloadAllAsync());
-            NavButton(sidebar, "?   " + L("Help"), false, _host.ShowIndicatorHelp);
+            NavButton(sidebar, "?   " + L("Help"), false, () => Navigate("help"));
             var spacer = new Border(); System.Windows.Controls.DockPanel.SetDock(spacer, Dock.Bottom); sidebar.Children.Add(spacer);
             sidebar.Children.Add(new TextBlock { Text = _versionText.Text, Foreground = Brush(Muted), FontSize = 10, Margin = new Thickness(22, 0, 0, 20) });
             RefreshPluginList();
+            Navigate(initialPage);
         }
 
         private UIElement BuildPluginsPage()
@@ -150,17 +168,192 @@ public partial class MainWindow
             return page;
         }
 
+        private UIElement BuildShortcutsPage()
+        {
+            var page = new StackPanel();
+            page.Children.Add(SectionTitle(L("Shortcuts & actions"), L("Set reset, reload and exit shortcuts")));
+            var intro = Card();
+            intro.Child = new TextBlock { Text = L("Click a shortcut field and press a combination with at least one modifier key. Press Escape to clear a shortcut."), Foreground = Brush(Muted), TextWrapping = TextWrapping.Wrap, FontSize = 12 };
+            page.Children.Add(intro);
+
+            var bindings = Card();
+            var rows = new StackPanel();
+            foreach (var pair in _host._hotkeys)
+            {
+                _hotkeyDraft[pair.Key] = pair.Value.Clone();
+                rows.Children.Add(BuildHotkeyRow(pair.Key, _hotkeyDraft[pair.Key]));
+                if (pair.Key != _host._hotkeys.Keys.Last()) rows.Children.Add(new Separator { Background = Brush(Surface2), Margin = new Thickness(0, 10, 0, 10) });
+            }
+            bindings.Child = rows;
+            page.Children.Add(bindings);
+
+            var buttons = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment = System.Windows.HorizontalAlignment.Right, Margin = new Thickness(0, 8, 0, 0) };
+            buttons.Children.Add(Button(L("Restore defaults"), Brush(Surface2), WpfBrushes.White, ResetHotkeys));
+            buttons.Children.Add(Button(L("Cancel"), Brush(Surface2), WpfBrushes.White, DiscardHotkeyChanges));
+            buttons.Children.Add(Button(L("Save"), Accent, Bg, SaveHotkeys));
+            page.Children.Add(buttons);
+            return page;
+        }
+
+        private UIElement BuildHotkeyRow(int id, HotkeyBinding binding)
+        {
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition());
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(245) });
+            string action = id == HotkeyIdReset ? L("Reset FPS max/min") : id == HotkeyIdExit ? L("Exit overlay") : L("Reload everything");
+            var description = id == HotkeyIdReset ? L("Clear the current session's FPS high and low values") : id == HotkeyIdExit ? L("Close the overlay") : L("Restart sensors and reload plugins");
+            var texts = new StackPanel();
+            texts.Children.Add(new TextBlock { Text = action, Foreground = WpfBrushes.White, FontSize = 14, FontWeight = FontWeights.SemiBold });
+            texts.Children.Add(new TextBlock { Text = description, Foreground = Brush(Muted), FontSize = 11, Margin = new Thickness(0, 3, 12, 0), TextWrapping = TextWrapping.Wrap });
+            grid.Children.Add(texts);
+
+            var input = new System.Windows.Controls.TextBox
+            {
+                Text = binding.Key == 0 ? L("Not set") : FormatHotkey(binding.Modifiers, System.Windows.Input.KeyInterop.KeyFromVirtualKey((int)binding.Key)),
+                Height = 38,
+                FontSize = 13,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                HorizontalContentAlignment = System.Windows.HorizontalAlignment.Center,
+                IsReadOnly = true,
+                Tag = id,
+                ToolTip = L("Click here, then press a key combination")
+            };
+            input.GotKeyboardFocus += (_, _) => input.SelectAll();
+            input.PreviewKeyDown += (_, e) =>
+            {
+                e.Handled = true;
+                if (e.Key == System.Windows.Input.Key.Escape)
+                {
+                    var cleared = new HotkeyBinding { Display = "Not set" };
+                    _hotkeyDraft[id] = cleared; input.Text = L("Not set"); return;
+                }
+                var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
+                if (key is System.Windows.Input.Key.LeftCtrl or System.Windows.Input.Key.RightCtrl or System.Windows.Input.Key.LeftAlt or System.Windows.Input.Key.RightAlt or System.Windows.Input.Key.LeftShift or System.Windows.Input.Key.RightShift or System.Windows.Input.Key.LWin or System.Windows.Input.Key.RWin) return;
+                uint modifiers = 0; var pressed = System.Windows.Input.Keyboard.Modifiers;
+                if (pressed.HasFlag(System.Windows.Input.ModifierKeys.Control)) modifiers |= ModControl;
+                if (pressed.HasFlag(System.Windows.Input.ModifierKeys.Alt)) modifiers |= ModAlt;
+                if (pressed.HasFlag(System.Windows.Input.ModifierKeys.Shift)) modifiers |= ModShift;
+                if (pressed.HasFlag(System.Windows.Input.ModifierKeys.Windows)) modifiers |= ModWin;
+                if (modifiers == 0) { input.Text = L("Use Ctrl/Alt/Shift/Win + a key"); return; }
+                var value = new HotkeyBinding { Modifiers = modifiers, Key = (uint)System.Windows.Input.KeyInterop.VirtualKeyFromKey(key), Display = FormatHotkey(modifiers, key) };
+                _hotkeyDraft[id] = value; input.Text = value.Display;
+            };
+            Grid.SetColumn(input, 1); grid.Children.Add(input); _hotkeyInputs[id] = input;
+            return grid;
+        }
+
+        private string FormatHotkey(uint modifiers, System.Windows.Input.Key key)
+        {
+            var parts = new List<string>();
+            if ((modifiers & ModControl) != 0) parts.Add(L("Ctrl"));
+            if ((modifiers & ModAlt) != 0) parts.Add(L("Alt"));
+            if ((modifiers & ModShift) != 0) parts.Add(L("Shift"));
+            if ((modifiers & ModWin) != 0) parts.Add("Win");
+            parts.Add(key.ToString());
+            return string.Join(" + ", parts);
+        }
+
+        private void SaveHotkeys()
+        {
+            var previous = _host._hotkeys.ToDictionary(x => x.Key, x => x.Value.Clone());
+            foreach (var pair in _hotkeyDraft) _host._hotkeys[pair.Key] = pair.Value.Clone();
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(_host).Handle;
+            if (!_host.RegisterConfiguredHotkeys(hwnd, showErrors: true))
+            {
+                foreach (var pair in previous) _host._hotkeys[pair.Key] = pair.Value;
+                _host.RegisterConfiguredHotkeys(hwnd, showErrors: false);
+                return;
+            }
+            _host.SaveSettings();
+            Navigate("general");
+        }
+
+        private void ResetHotkeys()
+        {
+            _hotkeyDraft[HotkeyIdReset] = new HotkeyBinding { Modifiers = ModControl | ModShift, Key = 0x52, Display = "Ctrl + Shift + R" };
+            _hotkeyDraft[HotkeyIdExit] = new HotkeyBinding { Modifiers = ModControl | ModAlt, Key = 0x51, Display = "Ctrl + Alt + Q" };
+            _hotkeyDraft[HotkeyIdReload] = new HotkeyBinding { Modifiers = ModControl | ModAlt, Key = 0x4C, Display = "Ctrl + Alt + L" };
+            foreach (var pair in _hotkeyInputs)
+            {
+                var binding = _hotkeyDraft[pair.Key];
+                pair.Value.Text = FormatHotkey(binding.Modifiers, System.Windows.Input.KeyInterop.KeyFromVirtualKey((int)binding.Key));
+            }
+        }
+
+        private void DiscardHotkeyChanges()
+        {
+            foreach (var pair in _host._hotkeys)
+            {
+                _hotkeyDraft[pair.Key] = pair.Value.Clone();
+                _hotkeyInputs[pair.Key].Text = pair.Value.Key == 0
+                    ? L("Not set")
+                    : FormatHotkey(pair.Value.Modifiers, System.Windows.Input.KeyInterop.KeyFromVirtualKey((int)pair.Value.Key));
+            }
+            Navigate("general");
+        }
+
+        private UIElement BuildHelpPage()
+        {
+            var page = new StackPanel();
+            page.Children.Add(SectionTitle(L("Help and indicator guide"), L("What the overlay values mean")));
+
+            var hero = Card();
+            var heroContent = new StackPanel();
+            heroContent.Children.Add(new TextBlock { Text = L("PERFORMANCE OVERLAY – INDICATOR GUIDE\n\n").Trim(), FontSize = 18, FontWeight = FontWeights.SemiBold, Foreground = Brush(Accent) });
+            heroContent.Children.Add(new TextBlock { Text = L("GREEN DOT: At least one sensor has a new reading available. Press the reload hotkey to reveal available readings.\n\n").Trim(), Foreground = WpfBrushes.White, FontSize = 13, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) });
+            hero.Child = heroContent; page.Children.Add(hero);
+
+            var columns = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+            columns.ColumnDefinitions.Add(new ColumnDefinition()); columns.ColumnDefinitions.Add(new ColumnDefinition());
+            var fps = Card(); fps.Margin = new Thickness(0, 0, 6, 10);
+            fps.Child = HelpCardContent("FPS", new[]
+            {
+                L("FPS AVG: Current average frames per second reported by Windows graphics events for the captured application.\n").Trim(),
+                L("FPS MAX / FPS MIN: Highest and lowest FPS recorded during the current session.\n\n").Trim()
+            });
+            columns.Children.Add(fps);
+            var sensors = Card(); sensors.Margin = new Thickness(6, 0, 0, 10); Grid.SetColumn(sensors, 1);
+            sensors.Child = HelpCardContent(L("Sensors"), new[]
+            {
+                L("CPU LOAD: Processor utilization.\n").Trim(), L("CPU TEMP: Processor temperature, when supported by the hardware.\n").Trim(),
+                L("RAM LOAD: System memory usage.\n").Trim(), L("GPU LOAD: Graphics processor utilization.\n").Trim(), L("GPU TEMP: Graphics processor temperature.\n\n").Trim()
+            });
+            columns.Children.Add(sensors); page.Children.Add(columns);
+
+            var note = Card();
+            var noteContent = new StackPanel();
+            noteContent.Children.Add(new TextBlock { Text = L("FPS display behavior"), FontSize = 14, FontWeight = FontWeights.SemiBold, Foreground = WpfBrushes.White });
+            noteContent.Children.Add(new TextBlock { Text = L("After a focus change, FPS fields show — while waiting for frame data. If no data arrives within five seconds, the dashes remain for five seconds and the FPS fields hide until data returns. After active capture goes quiet, the same five-second dash period starts after five seconds without a frame."), Foreground = Brush(Muted), FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) });
+            note.Child = noteContent; page.Children.Add(note);
+            return page;
+        }
+
+        private StackPanel HelpCardContent(string heading, IEnumerable<string> lines)
+        {
+            var content = new StackPanel();
+            content.Children.Add(new TextBlock { Text = heading, FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = Brush(Accent), Margin = new Thickness(0, 0, 0, 8) });
+            foreach (var line in lines) content.Children.Add(new TextBlock { Text = line, Foreground = WpfBrushes.White, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 5) });
+            return content;
+        }
+
         private void ShowGeneralPage()
         {
-            if (_generalPage is not null) _generalPage.Visibility = Visibility.Visible;
-            if (_pluginsPage is not null) _pluginsPage.Visibility = Visibility.Collapsed;
+            Navigate("general");
         }
 
         private void ShowPluginsPage()
         {
-            RefreshPluginList();
-            if (_generalPage is not null) _generalPage.Visibility = Visibility.Collapsed;
-            if (_pluginsPage is not null) _pluginsPage.Visibility = Visibility.Visible;
+            Navigate("plugins");
+        }
+
+        public void Navigate(string page)
+        {
+            if (_generalPage is null || _pluginsPage is null || _shortcutsPage is null || _helpPage is null) return;
+            if (page == "plugins") RefreshPluginList();
+            _generalPage.Visibility = page == "general" ? Visibility.Visible : Visibility.Collapsed;
+            _pluginsPage.Visibility = page == "plugins" ? Visibility.Visible : Visibility.Collapsed;
+            _shortcutsPage.Visibility = page == "shortcuts" ? Visibility.Visible : Visibility.Collapsed;
+            _helpPage.Visibility = page == "help" ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private UIElement BuildColorPicker()
@@ -261,14 +454,14 @@ public partial class MainWindow
             var block = new TextBlock { Text = title + "\n" + subtitle, FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = WpfBrushes.White, Margin = new Thickness(1, 0, 0, 10) };
             return block;
         }
-        private static UIElement ActionRow(string title, string description, Action action, bool danger = false)
+        private UIElement ActionRow(string title, string description, Action action, bool danger = false)
         {
             var grid = new Grid { Margin = new Thickness(0, 2, 0, 3) };
             grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             var text = new StackPanel(); text.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.SemiBold, Foreground = danger ? Brush(WpfColor.FromRgb(255, 145, 145)) : WpfBrushes.White });
             text.Children.Add(new TextBlock { Text = description, Foreground = Brush(Muted), FontSize = 10, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 4, 0) });
             grid.Children.Add(text);
-            var go = Button("Open", Brush(Surface2), WpfBrushes.White, action); Grid.SetColumn(go, 1); grid.Children.Add(go);
+            var go = Button(L("Open"), Brush(Surface2), WpfBrushes.White, action); Grid.SetColumn(go, 1); grid.Children.Add(go);
             return grid;
         }
         private static WpfButton Button(string label, WpfColor background, WpfColor foreground, Action action) => Button(label, Brush(background), Brush(foreground), action);
