@@ -2,6 +2,12 @@
 
 This file records the published versions of PerformanceOverlay and the changes included in each release.
 
+## [1.1.4] - 2026-11-15
+
+- Fit the settings window to the available work area and allow its content to scroll on shorter displays.
+- Add a functional Plugins page with per-plugin settings buttons.
+- Add an optional plugin settings entry point to the plugin API.
+
 ## [1.1.3] - 2026-11-13
 
 - Open a consolidated settings window from a left-click on the tray icon.

@@ -22,6 +22,13 @@ public interface IOverlayPlugin : IDisposable
     FrameworkElement CreateView();
 }
 
+/// <summary>Optional settings entry point that the host can show in its plugin manager.</summary>
+public interface IOverlayPluginSettings
+{
+    /// <summary>Opens the plugin's settings window, owned by the supplied host window.</summary>
+    void OpenSettings(Window owner);
+}
+
 /// <summary>Lets a plugin participate in core metric visibility without racing the host refresh loop.</summary>
 public interface IOverlayMetricVisibilityFilter
 {

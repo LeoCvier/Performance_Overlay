@@ -27,10 +27,13 @@ public partial class MainWindow
     private sealed class CoreSettingsWindow : Window
     {
         private readonly MainWindow _host;
-        private readonly StackPanel _pluginList = new();
-        private readonly TextBlock _pluginSummary = new();
+        private readonly StackPanel _managedPluginList = new();
+        private readonly TextBlock _managedPluginSummary = new();
         private readonly TextBlock _overlayState = new();
         private readonly TextBlock _versionText = new();
+        private Grid? _pages;
+        private UIElement? _generalPage;
+        private UIElement? _pluginsPage;
 
         private static readonly WpfColor Bg = WpfColor.FromRgb(14, 18, 27);
         private static readonly WpfColor Surface = WpfColor.FromRgb(23, 29, 42);
@@ -42,7 +45,11 @@ public partial class MainWindow
         {
             _host = host;
             Title = "Performance Overlay";
-            Width = 900; Height = 650; MinWidth = 760; MinHeight = 560;
+            var workArea = SystemParameters.WorkArea;
+            Width = Math.Min(900, Math.Max(640, workArea.Width - 24));
+            Height = Math.Min(720, Math.Max(420, workArea.Height - 24));
+            MinWidth = Math.Min(760, Width); MinHeight = Math.Min(560, Height);
+            MaxWidth = workArea.Width; MaxHeight = workArea.Height;
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
             Background = Brush(Bg); Foreground = WpfBrushes.White;
             FontFamily = new WpfFontFamily("Segoe UI");
@@ -58,7 +65,8 @@ public partial class MainWindow
             Grid.SetColumn(sidebar, 0); root.Children.Add(sidebar);
 
             var main = new StackPanel { Margin = new Thickness(30, 28, 30, 24) };
-            Grid.SetColumn(main, 1); root.Children.Add(main);
+            var mainScroll = new ScrollViewer { Content = main, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+            Grid.SetColumn(mainScroll, 1); root.Children.Add(mainScroll);
             main.Children.Add(new TextBlock { Text = "Control center", FontSize = 25, FontWeight = FontWeights.SemiBold });
             main.Children.Add(new TextBlock { Text = "Appearance, plugins and quick actions", Foreground = Brush(Muted), Margin = new Thickness(0, 3, 0, 20) });
 
@@ -79,26 +87,17 @@ public partial class MainWindow
             contentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.92, GridUnitType.Star) });
             var left = new StackPanel(); var right = new StackPanel { Margin = new Thickness(14, 0, 0, 0) };
             Grid.SetColumn(left, 0); Grid.SetColumn(right, 1); contentGrid.Children.Add(left); contentGrid.Children.Add(right);
-            main.Children.Add(contentGrid);
+            _pages = new Grid();
+            _generalPage = contentGrid;
+            _pluginsPage = BuildPluginsPage();
+            _pages.Children.Add(_generalPage);
+            _pluginsPage.Visibility = Visibility.Collapsed;
+            _pages.Children.Add(_pluginsPage);
+            main.Children.Add(_pages);
 
             left.Children.Add(SectionTitle("Appearance", "Adjust how the overlay looks on screen"));
             left.Children.Add(MakeSettingCard("Accent color", "Choose the overlay highlight", BuildColorPicker()));
             left.Children.Add(MakeSettingCard("Screen position", "Choose the overlay anchor", BuildPositionPicker()));
-            left.Children.Add(SectionTitle("Plugins", "Enable, load and manage extensions"));
-            var pluginsCard = Card();
-            var pluginsStack = new StackPanel();
-            var pluginHeader = new Grid { Margin = new Thickness(0, 0, 0, 8) };
-            pluginHeader.ColumnDefinitions.Add(new ColumnDefinition()); pluginHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            _pluginSummary.Foreground = Brush(Muted); pluginHeader.Children.Add(_pluginSummary);
-            var refresh = Button("Refresh", Brush(Surface2), WpfBrushes.White, RefreshPluginList); Grid.SetColumn(refresh, 1); pluginHeader.Children.Add(refresh);
-            pluginsStack.Children.Add(pluginHeader);
-            pluginsStack.Children.Add(new Separator { Background = Brush(Surface2), Margin = new Thickness(0, 0, 0, 6) });
-            pluginsStack.Children.Add(_pluginList);
-            var pluginButtons = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
-            pluginButtons.Children.Add(Button("Load plugin…", Accent, Bg, LoadPlugin));
-            pluginButtons.Children.Add(Button("Discover", Brush(Surface2), WpfBrushes.White, OpenPluginCatalog));
-            pluginButtons.Children.Add(Button("Plugin folder", Brush(Surface2), WpfBrushes.White, () => _host.OpenPluginFolder()));
-            pluginsStack.Children.Add(pluginButtons); pluginsCard.Child = pluginsStack; left.Children.Add(pluginsCard);
 
             right.Children.Add(SectionTitle("Quick actions", "Everything from the tray menu"));
             var actions = Card();
@@ -116,8 +115,8 @@ public partial class MainWindow
             _versionText.Foreground = Brush(Muted); _versionText.FontSize = 11;
             _versionText.Margin = new Thickness(2, 14, 0, 0); right.Children.Add(_versionText);
 
-            NavButton(sidebar, "◈   General", true, () => { });
-            NavButton(sidebar, "▦   Plugins", false, () => { _pluginList.Children.OfType<WpfCheckBox>().FirstOrDefault()?.Focus(); });
+            NavButton(sidebar, "◈   General", true, ShowGeneralPage);
+            NavButton(sidebar, "▦   Plugins", false, ShowPluginsPage);
             NavButton(sidebar, "⌘   Shortcuts & actions", false, () => _host.ShowHotkeySettings());
             var fill = new Border { Height = 1, Background = Brush(Surface2), Margin = new Thickness(18, 17, 18, 13) };
             sidebar.Children.Add(fill);
@@ -127,6 +126,40 @@ public partial class MainWindow
             var spacer = new Border(); System.Windows.Controls.DockPanel.SetDock(spacer, Dock.Bottom); sidebar.Children.Add(spacer);
             sidebar.Children.Add(new TextBlock { Text = _versionText.Text, Foreground = Brush(Muted), FontSize = 10, Margin = new Thickness(22, 0, 0, 20) });
             RefreshPluginList();
+        }
+
+        private UIElement BuildPluginsPage()
+        {
+            var page = new StackPanel();
+            page.Children.Add(SectionTitle("Plugins", "Enable plugins and open their settings"));
+            var card = Card();
+            var panel = new StackPanel();
+            var header = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+            header.ColumnDefinitions.Add(new ColumnDefinition()); header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            header.Children.Add(_managedPluginSummary);
+            var refresh = Button("Refresh", Brush(Surface2), WpfBrushes.White, RefreshPluginList);
+            Grid.SetColumn(refresh, 1); header.Children.Add(refresh); panel.Children.Add(header);
+            panel.Children.Add(new Separator { Background = Brush(Surface2), Margin = new Thickness(0, 0, 0, 8) });
+            panel.Children.Add(_managedPluginList);
+            var buttons = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
+            buttons.Children.Add(Button("Load plugin…", Accent, Bg, LoadPlugin));
+            buttons.Children.Add(Button("Discover", Brush(Surface2), WpfBrushes.White, OpenPluginCatalog));
+            buttons.Children.Add(Button("Plugin folder", Brush(Surface2), WpfBrushes.White, () => _host.OpenPluginFolder()));
+            panel.Children.Add(buttons); card.Child = panel; page.Children.Add(card);
+            return page;
+        }
+
+        private void ShowGeneralPage()
+        {
+            if (_generalPage is not null) _generalPage.Visibility = Visibility.Visible;
+            if (_pluginsPage is not null) _pluginsPage.Visibility = Visibility.Collapsed;
+        }
+
+        private void ShowPluginsPage()
+        {
+            RefreshPluginList();
+            if (_generalPage is not null) _generalPage.Visibility = Visibility.Collapsed;
+            if (_pluginsPage is not null) _pluginsPage.Visibility = Visibility.Visible;
         }
 
         private UIElement BuildColorPicker()
@@ -145,24 +178,38 @@ public partial class MainWindow
 
         private void RefreshPluginList()
         {
-            _pluginList.Children.Clear();
-            _pluginSummary.Text = _host._loadedPlugins.Count == 1 ? "1 plugin installed" : $"{_host._loadedPlugins.Count} plugins installed";
+            _managedPluginList.Children.Clear();
+            _managedPluginSummary.Text = _host._loadedPlugins.Count == 1 ? "1 plugin installed" : $"{_host._loadedPlugins.Count} plugins installed";
             if (_host._loadedPlugins.Count == 0)
-                _pluginList.Children.Add(new TextBlock { Text = "No plugins loaded yet.", Foreground = Brush(Muted), Margin = new Thickness(0, 3, 0, 3) });
+                _managedPluginList.Children.Add(new TextBlock { Text = "No plugins loaded yet.", Foreground = Brush(Muted), Margin = new Thickness(0, 3, 0, 3) });
             foreach (var plugin in _host._loadedPlugins)
-            {
-                var line = new DockPanel { Margin = new Thickness(0, 4, 0, 4), LastChildFill = true };
-                var check = new WpfCheckBox { Content = plugin.Instance.Name, ToolTip = plugin.Instance.Description, Foreground = WpfBrushes.White, IsChecked = _host._pluginContainers.TryGetValue(plugin, out var view) && view.Visibility == Visibility.Visible };
-                check.Checked += (_, _) => SetPluginVisibility(plugin, true); check.Unchecked += (_, _) => SetPluginVisibility(plugin, false);
-                DockPanel.SetDock(check, Dock.Left); line.Children.Add(check);
-                if (!string.IsNullOrWhiteSpace(plugin.Instance.Description)) line.Children.Add(new TextBlock { Text = plugin.Instance.Description, Foreground = Brush(Muted), TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(10, 1, 0, 0), HorizontalAlignment = System.Windows.HorizontalAlignment.Right });
-                _pluginList.Children.Add(line);
-            }
+                _managedPluginList.Children.Add(CreatePluginRow(plugin));
             if (_host._pluginLoadErrors.Count > 0)
             {
-                var errors = Button($"View {_host._pluginLoadErrors.Count} plugin error(s)", WpfColor.FromRgb(255, 120, 120), Bg, () => System.Windows.MessageBox.Show(string.Join(Environment.NewLine + Environment.NewLine, _host._pluginLoadErrors), "Plugin errors", MessageBoxButton.OK, MessageBoxImage.Warning));
-                errors.Margin = new Thickness(0, 8, 0, 0); _pluginList.Children.Add(errors);
+                _managedPluginList.Children.Add(Button($"View {_host._pluginLoadErrors.Count} plugin error(s)", WpfColor.FromRgb(255, 120, 120), Bg, () => System.Windows.MessageBox.Show(string.Join(Environment.NewLine + Environment.NewLine, _host._pluginLoadErrors), "Plugin errors", MessageBoxButton.OK, MessageBoxImage.Warning)));
             }
+        }
+
+        private UIElement CreatePluginRow(LoadedOverlayPlugin plugin)
+        {
+            var line = new Grid { Margin = new Thickness(0, 6, 0, 6) };
+            line.ColumnDefinitions.Add(new ColumnDefinition());
+            line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var details = new StackPanel();
+            var check = new WpfCheckBox { Content = plugin.Instance.Name, ToolTip = plugin.Instance.Description, Foreground = WpfBrushes.White, IsChecked = _host._pluginContainers.TryGetValue(plugin, out var view) && view.Visibility == Visibility.Visible };
+            check.Checked += (_, _) => SetPluginVisibility(plugin, true); check.Unchecked += (_, _) => SetPluginVisibility(plugin, false);
+            details.Children.Add(check);
+            if (!string.IsNullOrWhiteSpace(plugin.Instance.Description)) details.Children.Add(new TextBlock { Text = plugin.Instance.Description, Foreground = Brush(Muted), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(22, 2, 12, 0), FontSize = 11 });
+            line.Children.Add(details);
+            var hasSettings = plugin.Instance is IOverlayPluginSettings;
+            var settingsButton = Button("Settings", Brush(Surface2), WpfBrushes.White, () =>
+            {
+                if (plugin.Instance is IOverlayPluginSettings settings) settings.OpenSettings(this);
+            });
+            settingsButton.IsEnabled = hasSettings;
+            settingsButton.ToolTip = hasSettings ? "Open plugin settings" : "This plugin does not provide a settings window";
+            Grid.SetColumn(settingsButton, 1); line.Children.Add(settingsButton);
+            return line;
         }
 
         private void LoadPlugin() { _host.LoadPluginFromDialog(); RefreshPluginList(); }
