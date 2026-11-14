@@ -2,6 +2,11 @@
 
 This file records the published versions of PerformanceOverlay and the changes included in each release.
 
+## [1.1.6] - 2026-11-15
+
+- Add French, Japanese and Simplified Chinese as menu languages.
+- Localize the Customizable Overlay settings in the added languages.
+
 ## [1.1.5] - 2026-11-15
 
 - Add persistent English and German language selection for settings, tray menus, hotkey and help dialogs.

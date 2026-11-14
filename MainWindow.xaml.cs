@@ -633,7 +633,7 @@ public partial class MainWindow : Window
             if (!File.Exists(SettingsPath)) return;
             using var doc = JsonDocument.Parse(File.ReadAllText(SettingsPath));
             if (doc.RootElement.TryGetProperty("Language", out var language) && language.GetString() is string savedLanguage &&
-                savedLanguage is "English" or "German")
+                UiText.IsSupported(savedLanguage))
                 _uiLanguage = savedLanguage;
             if (doc.RootElement.TryGetProperty("Position", out var pos) && pos.GetString() is string savedPosition &&
                 new[] { "Top Left", "Top Center", "Top Right" }.Contains(savedPosition))
@@ -672,7 +672,7 @@ public partial class MainWindow : Window
 
     private void SetUiLanguage(string language)
     {
-        if (language is not ("English" or "German")) return;
+        if (!UiText.IsSupported(language)) return;
         _uiLanguage = language;
         SaveSettings();
         if (_trayMenu is null) return;

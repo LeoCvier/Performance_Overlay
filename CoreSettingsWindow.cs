@@ -175,7 +175,10 @@ public partial class MainWindow
             var picker = new WpfComboBox { Height = 36, ItemsSource = new[]
             {
                 new LanguageEntry("English", L("English")),
-                new LanguageEntry("German", L("German"))
+                new LanguageEntry("German", L("German")),
+                new LanguageEntry("French", L("French")),
+                new LanguageEntry("Japanese", L("Japanese")),
+                new LanguageEntry("Chinese", L("Chinese"))
             }, DisplayMemberPath = nameof(LanguageEntry.Label), SelectedValuePath = nameof(LanguageEntry.Value), SelectedValue = _host._uiLanguage };
             picker.SelectionChanged += (_, _) =>
             {

@@ -60,6 +60,9 @@ internal static class UiText
         ["Choose the language used by menus"] = "Sprache der Menüs auswählen",
         ["English"] = "Englisch",
         ["German"] = "Deutsch",
+        ["French"] = "Französisch",
+        ["Japanese"] = "Japanisch",
+        ["Chinese"] = "Chinesisch (vereinfacht)",
         ["Version {0}"] = "Version {0}",
         ["Settings…"] = "Einstellungen…",
         ["Configure hotkeys…"] = "Tastenkürzel einrichten…",
@@ -94,8 +97,108 @@ internal static class UiText
         ["Close"] = "Schließen",
     };
 
-    public static string Get(string language, string english) =>
-        language.Equals("German", StringComparison.OrdinalIgnoreCase) && German.TryGetValue(english, out var translation)
-            ? translation
-            : english;
+    private static readonly IReadOnlyDictionary<string, string> French = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["PERFORMANCE"] = "PERFORMANCES", ["Control center"] = "Centre de contrôle", ["Appearance, plugins and quick actions"] = "Apparence, extensions et actions rapides",
+        ["OVERLAY STATUS"] = "ÉTAT DE L’OVERLAY", ["●  Running on desktop"] = "●  Affiché sur le bureau", ["○  Hidden in tray"] = "○  Masqué dans la zone de notification",
+        ["Show overlay"] = "Afficher l’overlay", ["Hide overlay"] = "Masquer l’overlay", ["Appearance"] = "Apparence", ["Adjust how the overlay looks on screen"] = "Personnaliser l’apparence de l’overlay",
+        ["Accent color"] = "Couleur d’accentuation", ["Choose the overlay highlight"] = "Choisir la couleur de mise en évidence", ["Screen position"] = "Position à l’écran", ["Choose the overlay anchor"] = "Choisir l’emplacement de l’overlay",
+        ["Top Left"] = "En haut à gauche", ["Top Center"] = "En haut au centre", ["Top Right"] = "En haut à droite", ["Enable plugins and open their settings"] = "Activer les extensions et ouvrir leurs paramètres",
+        ["1 plugin installed"] = "1 extension chargée", ["{0} plugins installed"] = "{0} extensions chargées", ["No plugins loaded yet."] = "Aucune extension chargée.", ["Refresh"] = "Actualiser",
+        ["Load plugin…"] = "Charger une extension…", ["Discover"] = "Découvrir", ["Plugin folder"] = "Dossier des extensions", ["Settings"] = "Paramètres", ["Open plugin settings"] = "Ouvrir les paramètres de l’extension",
+        ["This plugin does not provide a settings window"] = "Cette extension ne propose pas de fenêtre de paramètres", ["View {0} plugin error(s)"] = "Afficher les erreurs ({0})", ["Plugin errors"] = "Erreurs des extensions",
+        ["Quick actions"] = "Actions rapides", ["Everything from the tray menu"] = "Toutes les actions du menu de notification", ["Reload everything"] = "Tout recharger", ["Restart sensor and plugin data"] = "Redémarrer les capteurs et les données des extensions",
+        ["Configure hotkeys"] = "Configurer les raccourcis clavier", ["Configure hotkeys…"] = "Configurer les raccourcis…", ["Set reset, reload and exit shortcuts"] = "Définir les raccourcis pour réinitialiser, recharger et quitter",
+        ["Help and indicator guide"] = "Aide et guide des indicateurs", ["What the overlay values mean"] = "Signification des valeurs de l’overlay", ["Discover plugins"] = "Découvrir des extensions", ["Browse available extensions"] = "Parcourir les extensions disponibles",
+        ["Open plugins folder"] = "Ouvrir le dossier des extensions", ["Manage installed plugin files"] = "Gérer les fichiers des extensions installées", ["Exit overlay"] = "Quitter l’overlay", ["Close the overlay"] = "Fermer l’overlay", ["Open"] = "Ouvrir",
+        ["General"] = "Général", ["Shortcuts & actions"] = "Raccourcis et actions", ["TRAY MENU"] = "MENU DE NOTIFICATION", ["Help"] = "Aide", ["Language"] = "Langue", ["Choose the language used by menus"] = "Choisir la langue des menus",
+        ["English"] = "English", ["German"] = "Deutsch", ["French"] = "Français", ["Japanese"] = "日本語", ["Chinese"] = "简体中文", ["Version {0}"] = "Version {0}", ["Settings…"] = "Paramètres…", ["Exit"] = "Quitter",
+        ["Plugin load errors ({0})"] = "Erreurs de chargement ({0})", ["Performance Overlay – Plugin errors"] = "Performance Overlay – Erreurs des extensions", ["Load plugin"] = "Charger une extension",
+        ["Plugins run inside PerformanceOverlay with the same permissions as the application. Only load plugins from sources you trust."] = "Les extensions s’exécutent avec les mêmes autorisations que l’application. Ne chargez que des extensions provenant de sources fiables.",
+        ["Select a PerformanceOverlay plugin"] = "Sélectionner une extension PerformanceOverlay", ["Plugin could not be loaded"] = "Impossible de charger l’extension", ["These hotkeys could not be registered:\n"] = "Impossible d’enregistrer ces raccourcis clavier :\n",
+        ["Select a field and press the desired key combination (at least one modifier key)."] = "Sélectionnez un champ et saisissez le raccourci souhaité (au moins une touche de modification).", ["Reset FPS max/min"] = "Réinitialiser FPS max/min", ["Not set"] = "Non défini", ["Use Ctrl/Alt/Shift/Win + a key"] = "Utilisez Ctrl/Alt/Maj/Win + une touche",
+        ["Performance Overlay – Help"] = "Performance Overlay – Aide", ["PERFORMANCE OVERLAY – INDICATOR GUIDE\n\n"] = "PERFORMANCE OVERLAY – GUIDE DES INDICATEURS\n\n",
+        ["GREEN DOT: At least one sensor has a new reading available. Press the reload hotkey to reveal available readings.\n\n"] = "POINT VERT : au moins un capteur a une nouvelle mesure. Utilisez le raccourci de rechargement pour afficher les mesures disponibles.\n\n",
+        ["FPS AVG: Current average frames per second reported by Windows graphics events for the captured application.\n"] = "FPS AVG : moyenne actuelle d’images par seconde de l’application suivie, selon les événements graphiques Windows.\n",
+        ["FPS MAX / FPS MIN: Highest and lowest FPS recorded during the current session.\n\n"] = "FPS MAX / FPS MIN : valeurs maximale et minimale enregistrées pendant la session.\n\n",
+        ["CPU LOAD: Processor utilization.\n"] = "CPU LOAD : utilisation du processeur.\n", ["CPU TEMP: Processor temperature, when supported by the hardware.\n"] = "CPU TEMP : température du processeur, si le matériel la prend en charge.\n",
+        ["RAM LOAD: System memory usage.\n"] = "RAM LOAD : utilisation de la mémoire système.\n", ["GPU LOAD: Graphics processor utilization.\n"] = "GPU LOAD : utilisation du processeur graphique.\n", ["GPU TEMP: Graphics processor temperature.\n\n"] = "GPU TEMP : température du processeur graphique.\n\n",
+        ["After a focus change, FPS fields show — while waiting for frame data. If no data arrives within five seconds, the dashes remain for five seconds and the FPS fields hide until data returns. After active capture goes quiet, the same five-second dash period starts after five seconds without a frame."] = "Après un changement de fenêtre active, les champs FPS affichent — en attendant les images. Sans données pendant cinq secondes, les tirets restent affichés cinq secondes supplémentaires, puis les champs se masquent jusqu’au retour des données. Après cinq secondes sans nouvelle image, la même attente commence.",
+        ["Save"] = "Enregistrer", ["Cancel"] = "Annuler", ["Close"] = "Fermer", ["No plugins loaded"] = "Aucune extension chargée", ["No plugins loaded yet"] = "Aucune extension chargée pour l’instant"
+    };
+
+    private static readonly IReadOnlyDictionary<string, string> Japanese = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["PERFORMANCE"] = "パフォーマンス", ["Overlay"] = "オーバーレイ", ["Control center"] = "コントロールセンター", ["Appearance, plugins and quick actions"] = "外観、プラグイン、クイック操作",
+        ["OVERLAY STATUS"] = "オーバーレイの状態", ["●  Running on desktop"] = "●  デスクトップに表示中", ["○  Hidden in tray"] = "○  タスクトレイに格納中",
+        ["Show overlay"] = "オーバーレイを表示", ["Hide overlay"] = "オーバーレイを非表示", ["Appearance"] = "外観", ["Adjust how the overlay looks on screen"] = "画面上のオーバーレイの外観を設定",
+        ["Accent color"] = "アクセントカラー", ["Choose the overlay highlight"] = "オーバーレイの強調色を選択", ["Screen position"] = "画面上の位置", ["Choose the overlay anchor"] = "オーバーレイの配置を選択",
+        ["Top Left"] = "左上", ["Top Center"] = "上中央", ["Top Right"] = "右上", ["Plugins"] = "プラグイン", ["Enable plugins and open their settings"] = "プラグインを有効にして設定を開く",
+        ["1 plugin installed"] = "1 個のプラグインを読み込み済み", ["{0} plugins installed"] = "{0} 個のプラグインを読み込み済み", ["No plugins loaded yet."] = "プラグインはまだ読み込まれていません。", ["Refresh"] = "更新",
+        ["Load plugin…"] = "プラグインを読み込む…", ["Discover"] = "プラグインを探す", ["Plugin folder"] = "プラグインフォルダー", ["Settings"] = "設定", ["Open plugin settings"] = "プラグイン設定を開く",
+        ["This plugin does not provide a settings window"] = "このプラグインには設定画面がありません", ["View {0} plugin error(s)"] = "プラグインエラーを表示（{0} 件）", ["Plugin errors"] = "プラグインエラー",
+        ["Quick actions"] = "クイック操作", ["Everything from the tray menu"] = "タスクトレイメニューの操作", ["Reload everything"] = "すべて再読み込み", ["Restart sensor and plugin data"] = "センサーとプラグインのデータを再起動",
+        ["Configure hotkeys"] = "ショートカットキーを設定", ["Configure hotkeys…"] = "ショートカットキーを設定…", ["Set reset, reload and exit shortcuts"] = "リセット、再読み込み、終了のキーを設定",
+        ["Help and indicator guide"] = "ヘルプと表示項目の説明", ["What the overlay values mean"] = "オーバーレイの数値について", ["Discover plugins"] = "プラグインを探す", ["Browse available extensions"] = "利用可能な拡張機能を表示",
+        ["Open plugins folder"] = "プラグインフォルダーを開く", ["Manage installed plugin files"] = "インストール済みプラグインを管理", ["Exit overlay"] = "オーバーレイを終了", ["Close the overlay"] = "オーバーレイを閉じる", ["Open"] = "開く",
+        ["General"] = "全般", ["Shortcuts & actions"] = "ショートカットと操作", ["TRAY MENU"] = "タスクトレイメニュー", ["Help"] = "ヘルプ", ["Language"] = "言語", ["Choose the language used by menus"] = "メニューの表示言語を選択",
+        ["English"] = "English", ["German"] = "Deutsch", ["French"] = "Français", ["Japanese"] = "日本語", ["Chinese"] = "简体中文", ["Version {0}"] = "バージョン {0}", ["Settings…"] = "設定…", ["Exit"] = "終了",
+        ["Plugin load errors ({0})"] = "プラグイン読み込みエラー（{0} 件）", ["Performance Overlay – Plugin errors"] = "Performance Overlay – プラグインエラー", ["Load plugin"] = "プラグインを読み込む",
+        ["Plugins run inside PerformanceOverlay with the same permissions as the application. Only load plugins from sources you trust."] = "プラグインはアプリと同じ権限で実行されます。信頼できる提供元のプラグインのみ読み込んでください。",
+        ["Select a PerformanceOverlay plugin"] = "PerformanceOverlay プラグインを選択", ["Plugin could not be loaded"] = "プラグインを読み込めませんでした", ["These hotkeys could not be registered:\n"] = "次のショートカットを登録できませんでした:\n",
+        ["Select a field and press the desired key combination (at least one modifier key)."] = "項目を選び、設定するキーの組み合わせ（修飾キーを1つ以上）を押してください。", ["Reset FPS max/min"] = "FPS 最大/最小をリセット", ["Not set"] = "未設定", ["Use Ctrl/Alt/Shift/Win + a key"] = "Ctrl/Alt/Shift/Win と任意のキーを押してください",
+        ["Performance Overlay – Help"] = "Performance Overlay – ヘルプ", ["PERFORMANCE OVERLAY – INDICATOR GUIDE\n\n"] = "PERFORMANCE OVERLAY – 表示項目ガイド\n\n",
+        ["GREEN DOT: At least one sensor has a new reading available. Press the reload hotkey to reveal available readings.\n\n"] = "緑の点: 1つ以上のセンサーに新しい値があります。再読み込みのショートカットで値を表示します。\n\n",
+        ["FPS AVG: Current average frames per second reported by Windows graphics events for the captured application.\n"] = "FPS AVG: Windows の描画イベントから取得した対象アプリの平均フレームレート。\n",
+        ["FPS MAX / FPS MIN: Highest and lowest FPS recorded during the current session.\n\n"] = "FPS MAX / FPS MIN: 現在のセッションで記録した最高/最低 FPS。\n\n",
+        ["CPU LOAD: Processor utilization.\n"] = "CPU LOAD: プロセッサー使用率。\n", ["CPU TEMP: Processor temperature, when supported by the hardware.\n"] = "CPU TEMP: 対応ハードウェアでのプロセッサー温度。\n",
+        ["RAM LOAD: System memory usage.\n"] = "RAM LOAD: メモリー使用率。\n", ["GPU LOAD: Graphics processor utilization.\n"] = "GPU LOAD: グラフィックスプロセッサー使用率。\n", ["GPU TEMP: Graphics processor temperature.\n\n"] = "GPU TEMP: グラフィックスプロセッサー温度。\n\n",
+        ["After a focus change, FPS fields show — while waiting for frame data. If no data arrives within five seconds, the dashes remain for five seconds and the FPS fields hide until data returns. After active capture goes quiet, the same five-second dash period starts after five seconds without a frame."] = "フォーカス変更後、フレームデータを待つ間 FPS 欄は — を表示します。5秒以内にデータが届かない場合、さらに5秒間 — を表示してから、データが戻るまで FPS 欄を隠します。フレームが5秒間届かない場合も同様に表示します。",
+        ["Save"] = "保存", ["Cancel"] = "キャンセル", ["Close"] = "閉じる", ["No plugins loaded"] = "プラグインはありません", ["No plugins loaded yet"] = "プラグインはまだありません"
+    };
+
+    private static readonly IReadOnlyDictionary<string, string> Chinese = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["PERFORMANCE"] = "性能", ["Overlay"] = "覆盖层", ["Control center"] = "控制中心", ["Appearance, plugins and quick actions"] = "外观、插件和快捷操作",
+        ["OVERLAY STATUS"] = "覆盖层状态", ["●  Running on desktop"] = "●  正在桌面显示", ["○  Hidden in tray"] = "○  已隐藏到系统托盘",
+        ["Show overlay"] = "显示覆盖层", ["Hide overlay"] = "隐藏覆盖层", ["Appearance"] = "外观", ["Adjust how the overlay looks on screen"] = "调整覆盖层的屏幕显示效果",
+        ["Accent color"] = "强调色", ["Choose the overlay highlight"] = "选择覆盖层高亮颜色", ["Screen position"] = "屏幕位置", ["Choose the overlay anchor"] = "选择覆盖层的停靠位置",
+        ["Top Left"] = "左上", ["Top Center"] = "顶部居中", ["Top Right"] = "右上", ["Plugins"] = "插件", ["Enable plugins and open their settings"] = "启用插件并打开其设置",
+        ["1 plugin installed"] = "已加载 1 个插件", ["{0} plugins installed"] = "已加载 {0} 个插件", ["No plugins loaded yet."] = "尚未加载插件。", ["Refresh"] = "刷新",
+        ["Load plugin…"] = "加载插件…", ["Discover"] = "发现插件", ["Plugin folder"] = "插件文件夹", ["Settings"] = "设置", ["Open plugin settings"] = "打开插件设置",
+        ["This plugin does not provide a settings window"] = "此插件没有提供设置窗口", ["View {0} plugin error(s)"] = "查看 {0} 个插件错误", ["Plugin errors"] = "插件错误",
+        ["Quick actions"] = "快捷操作", ["Everything from the tray menu"] = "系统托盘菜单中的所有操作", ["Reload everything"] = "全部重新加载", ["Restart sensor and plugin data"] = "重新启动传感器和插件数据",
+        ["Configure hotkeys"] = "配置快捷键", ["Configure hotkeys…"] = "配置快捷键…", ["Set reset, reload and exit shortcuts"] = "设置重置、重新加载和退出快捷键",
+        ["Help and indicator guide"] = "帮助和指标说明", ["What the overlay values mean"] = "了解覆盖层数值的含义", ["Discover plugins"] = "发现插件", ["Browse available extensions"] = "浏览可用扩展",
+        ["Open plugins folder"] = "打开插件文件夹", ["Manage installed plugin files"] = "管理已安装的插件文件", ["Exit overlay"] = "退出覆盖层", ["Close the overlay"] = "关闭覆盖层", ["Open"] = "打开",
+        ["General"] = "常规", ["Shortcuts & actions"] = "快捷键和操作", ["TRAY MENU"] = "系统托盘菜单", ["Help"] = "帮助", ["Language"] = "语言", ["Choose the language used by menus"] = "选择菜单显示语言",
+        ["English"] = "English", ["German"] = "Deutsch", ["French"] = "Français", ["Japanese"] = "日本語", ["Chinese"] = "简体中文", ["Version {0}"] = "版本 {0}", ["Settings…"] = "设置…", ["Exit"] = "退出",
+        ["Plugin load errors ({0})"] = "插件加载错误（{0}）", ["Performance Overlay – Plugin errors"] = "Performance Overlay – 插件错误", ["Load plugin"] = "加载插件",
+        ["Plugins run inside PerformanceOverlay with the same permissions as the application. Only load plugins from sources you trust."] = "插件将以与应用相同的权限运行。请只加载来自可信来源的插件。",
+        ["Select a PerformanceOverlay plugin"] = "选择 PerformanceOverlay 插件", ["Plugin could not be loaded"] = "无法加载插件", ["These hotkeys could not be registered:\n"] = "无法注册以下快捷键：\n",
+        ["Select a field and press the desired key combination (at least one modifier key)."] = "选择一个项目，然后按下所需的组合键（至少包含一个修饰键）。", ["Reset FPS max/min"] = "重置 FPS 最大值/最小值", ["Not set"] = "未设置", ["Use Ctrl/Alt/Shift/Win + a key"] = "请使用 Ctrl/Alt/Shift/Win 加一个按键",
+        ["Performance Overlay – Help"] = "Performance Overlay – 帮助", ["PERFORMANCE OVERLAY – INDICATOR GUIDE\n\n"] = "PERFORMANCE OVERLAY – 指标说明\n\n",
+        ["GREEN DOT: At least one sensor has a new reading available. Press the reload hotkey to reveal available readings.\n\n"] = "绿色圆点：至少一个传感器有新读数。按下重新加载快捷键可显示可用读数。\n\n",
+        ["FPS AVG: Current average frames per second reported by Windows graphics events for the captured application.\n"] = "FPS AVG：Windows 图形事件报告的当前目标应用平均帧率。\n",
+        ["FPS MAX / FPS MIN: Highest and lowest FPS recorded during the current session.\n\n"] = "FPS MAX / FPS MIN：当前会话记录的最高和最低帧率。\n\n",
+        ["CPU LOAD: Processor utilization.\n"] = "CPU LOAD：处理器使用率。\n", ["CPU TEMP: Processor temperature, when supported by the hardware.\n"] = "CPU TEMP：处理器温度（硬件支持时）。\n",
+        ["RAM LOAD: System memory usage.\n"] = "RAM LOAD：系统内存使用率。\n", ["GPU LOAD: Graphics processor utilization.\n"] = "GPU LOAD：图形处理器使用率。\n", ["GPU TEMP: Graphics processor temperature.\n\n"] = "GPU TEMP：图形处理器温度。\n\n",
+        ["After a focus change, FPS fields show — while waiting for frame data. If no data arrives within five seconds, the dashes remain for five seconds and the FPS fields hide until data returns. After active capture goes quiet, the same five-second dash period starts after five seconds without a frame."] = "切换焦点后，FPS 字段会显示 — 并等待帧数据。如果五秒内没有数据，短横线会再显示五秒，随后隐藏 FPS 字段，直到数据恢复。连续五秒没有新帧时也会进入相同的等待状态。",
+        ["Save"] = "保存", ["Cancel"] = "取消", ["Close"] = "关闭", ["No plugins loaded"] = "没有已加载的插件", ["No plugins loaded yet"] = "尚未加载插件"
+    };
+
+    public static bool IsSupported(string language) => language is "English" or "German" or "French" or "Japanese" or "Chinese";
+
+    public static string Get(string language, string english)
+    {
+        var translations = language switch
+        {
+            "German" => German,
+            "French" => French,
+            "Japanese" => Japanese,
+            "Chinese" => Chinese,
+            _ => null
+        };
+        return translations is not null && translations.TryGetValue(english, out var translation) ? translation : english;
+    }
 }
