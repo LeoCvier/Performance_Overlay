@@ -2,6 +2,11 @@
 
 This file records the published versions of PerformanceOverlay and the changes included in each release.
 
+## [1.1.5] - 2026-11-15
+
+- Add persistent English and German language selection for settings, tray menus, hotkey and help dialogs.
+- Localize the Customizable Overlay plugin menu and settings dialog based on the selected menu language.
+
 ## [1.1.4] - 2026-11-15
 
 - Fit the settings window to the available work area and allow its content to scroll on shorter displays.

@@ -44,7 +44,7 @@ public partial class MainWindow
         public CoreSettingsWindow(MainWindow host)
         {
             _host = host;
-            Title = "Performance Overlay";
+            Title = L("Performance Overlay");
             var workArea = SystemParameters.WorkArea;
             Width = Math.Min(900, Math.Max(640, workArea.Width - 24));
             Height = Math.Min(720, Math.Max(420, workArea.Height - 24));
@@ -60,25 +60,25 @@ public partial class MainWindow
             Content = root;
 
             var sidebar = new StackPanel { Background = Brush(WpfColor.FromRgb(18, 23, 34)), Margin = new Thickness(0), };
-            sidebar.Children.Add(new TextBlock { Text = "PERFORMANCE", Foreground = Brush(Accent), FontSize = 11, FontWeight = FontWeights.Bold, Margin = new Thickness(22, 25, 0, 2) });
-            sidebar.Children.Add(new TextBlock { Text = "Overlay", FontSize = 25, FontWeight = FontWeights.SemiBold, Margin = new Thickness(22, 0, 0, 23) });
+            sidebar.Children.Add(new TextBlock { Text = L("PERFORMANCE"), Foreground = Brush(Accent), FontSize = 11, FontWeight = FontWeights.Bold, Margin = new Thickness(22, 25, 0, 2) });
+            sidebar.Children.Add(new TextBlock { Text = L("Overlay"), FontSize = 25, FontWeight = FontWeights.SemiBold, Margin = new Thickness(22, 0, 0, 23) });
             Grid.SetColumn(sidebar, 0); root.Children.Add(sidebar);
 
             var main = new StackPanel { Margin = new Thickness(30, 28, 30, 24) };
             var mainScroll = new ScrollViewer { Content = main, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
             Grid.SetColumn(mainScroll, 1); root.Children.Add(mainScroll);
-            main.Children.Add(new TextBlock { Text = "Control center", FontSize = 25, FontWeight = FontWeights.SemiBold });
-            main.Children.Add(new TextBlock { Text = "Appearance, plugins and quick actions", Foreground = Brush(Muted), Margin = new Thickness(0, 3, 0, 20) });
+            main.Children.Add(new TextBlock { Text = L("Control center"), FontSize = 25, FontWeight = FontWeights.SemiBold });
+            main.Children.Add(new TextBlock { Text = L("Appearance, plugins and quick actions"), Foreground = Brush(Muted), Margin = new Thickness(0, 3, 0, 20) });
 
             var status = new Grid { Margin = new Thickness(0, 0, 0, 16) };
             status.ColumnDefinitions.Add(new ColumnDefinition()); status.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             var statusCard = Card();
             var statusStack = new StackPanel();
-            statusStack.Children.Add(new TextBlock { Text = "OVERLAY STATUS", Foreground = Brush(Muted), FontSize = 10, FontWeight = FontWeights.Bold });
-            _overlayState.Text = _host.IsVisible ? "●  Running on desktop" : "○  Hidden in tray";
+            statusStack.Children.Add(new TextBlock { Text = L("OVERLAY STATUS"), Foreground = Brush(Muted), FontSize = 10, FontWeight = FontWeights.Bold });
+            _overlayState.Text = _host.IsVisible ? L("●  Running on desktop") : L("○  Hidden in tray");
             _overlayState.FontSize = 17; _overlayState.Margin = new Thickness(0, 5, 0, 0);
             statusStack.Children.Add(_overlayState); statusCard.Child = statusStack; status.Children.Add(statusCard);
-            var toggle = Button(_host.IsVisible ? "Hide overlay" : "Show overlay", Accent, Surface, () => ToggleOverlay());
+            var toggle = Button(L(_host.IsVisible ? "Hide overlay" : "Show overlay"), Accent, Surface, () => ToggleOverlay());
             toggle.Margin = new Thickness(12, 0, 0, 0); Grid.SetColumn(toggle, 1); status.Children.Add(toggle);
             main.Children.Add(status);
 
@@ -95,34 +95,35 @@ public partial class MainWindow
             _pages.Children.Add(_pluginsPage);
             main.Children.Add(_pages);
 
-            left.Children.Add(SectionTitle("Appearance", "Adjust how the overlay looks on screen"));
-            left.Children.Add(MakeSettingCard("Accent color", "Choose the overlay highlight", BuildColorPicker()));
-            left.Children.Add(MakeSettingCard("Screen position", "Choose the overlay anchor", BuildPositionPicker()));
+            left.Children.Add(SectionTitle(L("Appearance"), L("Adjust how the overlay looks on screen")));
+            left.Children.Add(MakeSettingCard(L("Language"), L("Choose the language used by menus"), BuildLanguagePicker()));
+            left.Children.Add(MakeSettingCard(L("Accent color"), L("Choose the overlay highlight"), BuildColorPicker()));
+            left.Children.Add(MakeSettingCard(L("Screen position"), L("Choose the overlay anchor"), BuildPositionPicker()));
 
-            right.Children.Add(SectionTitle("Quick actions", "Everything from the tray menu"));
+            right.Children.Add(SectionTitle(L("Quick actions"), L("Everything from the tray menu")));
             var actions = Card();
             var actionStack = new StackPanel();
-            actionStack.Children.Add(ActionRow("Reload everything", "Restart sensor and plugin data", async () => await _host.ReloadAllAsync()));
-            actionStack.Children.Add(ActionRow("Configure hotkeys", "Set reset, reload and exit shortcuts", _host.ShowHotkeySettings));
-            actionStack.Children.Add(ActionRow("Help and indicator guide", "What the overlay values mean", _host.ShowIndicatorHelp));
-            actionStack.Children.Add(ActionRow("Discover plugins", "Browse available extensions", OpenPluginCatalog));
-            actionStack.Children.Add(ActionRow("Open plugins folder", "Manage installed plugin files", () => _host.OpenPluginFolder()));
-            actionStack.Children.Add(ActionRow("Exit overlay", "Close the overlay", () => _host.StopOverlayAnimation(), danger: true));
+            actionStack.Children.Add(ActionRow(L("Reload everything"), L("Restart sensor and plugin data"), async () => await _host.ReloadAllAsync()));
+            actionStack.Children.Add(ActionRow(L("Configure hotkeys"), L("Set reset, reload and exit shortcuts"), _host.ShowHotkeySettings));
+            actionStack.Children.Add(ActionRow(L("Help and indicator guide"), L("What the overlay values mean"), _host.ShowIndicatorHelp));
+            actionStack.Children.Add(ActionRow(L("Discover plugins"), L("Browse available extensions"), OpenPluginCatalog));
+            actionStack.Children.Add(ActionRow(L("Open plugins folder"), L("Manage installed plugin files"), () => _host.OpenPluginFolder()));
+            actionStack.Children.Add(ActionRow(L("Exit overlay"), L("Close the overlay"), () => _host.StopOverlayAnimation(), danger: true));
             actions.Child = actionStack; right.Children.Add(actions);
 
             var version = typeof(MainWindow).Assembly.GetName().Version;
-            _versionText.Text = $"Performance Overlay  ·  v{version?.ToString(3) ?? "unknown"}";
+            _versionText.Text = $"{L("Performance Overlay")}  ·  v{version?.ToString(3) ?? "unknown"}";
             _versionText.Foreground = Brush(Muted); _versionText.FontSize = 11;
             _versionText.Margin = new Thickness(2, 14, 0, 0); right.Children.Add(_versionText);
 
-            NavButton(sidebar, "◈   General", true, ShowGeneralPage);
-            NavButton(sidebar, "▦   Plugins", false, ShowPluginsPage);
-            NavButton(sidebar, "⌘   Shortcuts & actions", false, () => _host.ShowHotkeySettings());
+            NavButton(sidebar, "◈   " + L("General"), true, ShowGeneralPage);
+            NavButton(sidebar, "▦   " + L("Plugins"), false, ShowPluginsPage);
+            NavButton(sidebar, "⌘   " + L("Shortcuts & actions"), false, () => _host.ShowHotkeySettings());
             var fill = new Border { Height = 1, Background = Brush(Surface2), Margin = new Thickness(18, 17, 18, 13) };
             sidebar.Children.Add(fill);
-            sidebar.Children.Add(new TextBlock { Text = "TRAY MENU", Foreground = Brush(Muted), FontSize = 10, FontWeight = FontWeights.Bold, Margin = new Thickness(22, 0, 0, 8) });
-            NavButton(sidebar, "↻   Reload everything", false, async () => await _host.ReloadAllAsync());
-            NavButton(sidebar, "?   Help", false, _host.ShowIndicatorHelp);
+            sidebar.Children.Add(new TextBlock { Text = L("TRAY MENU"), Foreground = Brush(Muted), FontSize = 10, FontWeight = FontWeights.Bold, Margin = new Thickness(22, 0, 0, 8) });
+            NavButton(sidebar, "↻   " + L("Reload everything"), false, async () => await _host.ReloadAllAsync());
+            NavButton(sidebar, "?   " + L("Help"), false, _host.ShowIndicatorHelp);
             var spacer = new Border(); System.Windows.Controls.DockPanel.SetDock(spacer, Dock.Bottom); sidebar.Children.Add(spacer);
             sidebar.Children.Add(new TextBlock { Text = _versionText.Text, Foreground = Brush(Muted), FontSize = 10, Margin = new Thickness(22, 0, 0, 20) });
             RefreshPluginList();
@@ -131,20 +132,20 @@ public partial class MainWindow
         private UIElement BuildPluginsPage()
         {
             var page = new StackPanel();
-            page.Children.Add(SectionTitle("Plugins", "Enable plugins and open their settings"));
+            page.Children.Add(SectionTitle(L("Plugins"), L("Enable plugins and open their settings")));
             var card = Card();
             var panel = new StackPanel();
             var header = new Grid { Margin = new Thickness(0, 0, 0, 8) };
             header.ColumnDefinitions.Add(new ColumnDefinition()); header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             header.Children.Add(_managedPluginSummary);
-            var refresh = Button("Refresh", Brush(Surface2), WpfBrushes.White, RefreshPluginList);
+            var refresh = Button(L("Refresh"), Brush(Surface2), WpfBrushes.White, RefreshPluginList);
             Grid.SetColumn(refresh, 1); header.Children.Add(refresh); panel.Children.Add(header);
             panel.Children.Add(new Separator { Background = Brush(Surface2), Margin = new Thickness(0, 0, 0, 8) });
             panel.Children.Add(_managedPluginList);
             var buttons = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
-            buttons.Children.Add(Button("Load plugin…", Accent, Bg, LoadPlugin));
-            buttons.Children.Add(Button("Discover", Brush(Surface2), WpfBrushes.White, OpenPluginCatalog));
-            buttons.Children.Add(Button("Plugin folder", Brush(Surface2), WpfBrushes.White, () => _host.OpenPluginFolder()));
+            buttons.Children.Add(Button(L("Load plugin…"), Accent, Bg, LoadPlugin));
+            buttons.Children.Add(Button(L("Discover"), Brush(Surface2), WpfBrushes.White, OpenPluginCatalog));
+            buttons.Children.Add(Button(L("Plugin folder"), Brush(Surface2), WpfBrushes.White, () => _host.OpenPluginFolder()));
             panel.Children.Add(buttons); card.Child = panel; page.Children.Add(card);
             return page;
         }
@@ -169,10 +170,32 @@ public partial class MainWindow
             return picker;
         }
 
+        private UIElement BuildLanguagePicker()
+        {
+            var picker = new WpfComboBox { Height = 36, ItemsSource = new[]
+            {
+                new LanguageEntry("English", L("English")),
+                new LanguageEntry("German", L("German"))
+            }, DisplayMemberPath = nameof(LanguageEntry.Label), SelectedValuePath = nameof(LanguageEntry.Value), SelectedValue = _host._uiLanguage };
+            picker.SelectionChanged += (_, _) =>
+            {
+                if (picker.SelectedValue is not string language || language == _host._uiLanguage) return;
+                _host.SetUiLanguage(language);
+                Close();
+                _host.Dispatcher.BeginInvoke(new Action(_host.OpenCoreSettings));
+            };
+            return picker;
+        }
+
         private UIElement BuildPositionPicker()
         {
-            var picker = new WpfComboBox { ItemsSource = new[] { "Top Left", "Top Center", "Top Right" }, SelectedItem = _host._overlayPosition, Height = 36 };
-            picker.SelectionChanged += (_, _) => { if (picker.SelectedItem is string value) _host.SetOverlayPosition(value); };
+            var picker = new WpfComboBox { Height = 36, ItemsSource = new[]
+            {
+                new PositionEntry("Top Left", L("Top Left")),
+                new PositionEntry("Top Center", L("Top Center")),
+                new PositionEntry("Top Right", L("Top Right"))
+            }, DisplayMemberPath = nameof(PositionEntry.Label), SelectedValuePath = nameof(PositionEntry.Value), SelectedValue = _host._overlayPosition };
+            picker.SelectionChanged += (_, _) => { if (picker.SelectedValue is string value) _host.SetOverlayPosition(value); };
             return picker;
         }
 
@@ -181,12 +204,12 @@ public partial class MainWindow
             _managedPluginList.Children.Clear();
             _managedPluginSummary.Text = _host._loadedPlugins.Count == 1 ? "1 plugin installed" : $"{_host._loadedPlugins.Count} plugins installed";
             if (_host._loadedPlugins.Count == 0)
-                _managedPluginList.Children.Add(new TextBlock { Text = "No plugins loaded yet.", Foreground = Brush(Muted), Margin = new Thickness(0, 3, 0, 3) });
+                _managedPluginList.Children.Add(new TextBlock { Text = L("No plugins loaded yet."), Foreground = Brush(Muted), Margin = new Thickness(0, 3, 0, 3) });
             foreach (var plugin in _host._loadedPlugins)
                 _managedPluginList.Children.Add(CreatePluginRow(plugin));
             if (_host._pluginLoadErrors.Count > 0)
             {
-                _managedPluginList.Children.Add(Button($"View {_host._pluginLoadErrors.Count} plugin error(s)", WpfColor.FromRgb(255, 120, 120), Bg, () => System.Windows.MessageBox.Show(string.Join(Environment.NewLine + Environment.NewLine, _host._pluginLoadErrors), "Plugin errors", MessageBoxButton.OK, MessageBoxImage.Warning)));
+                _managedPluginList.Children.Add(Button(string.Format(L("View {0} plugin error(s)"), _host._pluginLoadErrors.Count), WpfColor.FromRgb(255, 120, 120), Bg, () => System.Windows.MessageBox.Show(string.Join(Environment.NewLine + Environment.NewLine, _host._pluginLoadErrors), L("Plugin errors"), MessageBoxButton.OK, MessageBoxImage.Warning)));
             }
         }
 
@@ -202,12 +225,12 @@ public partial class MainWindow
             if (!string.IsNullOrWhiteSpace(plugin.Instance.Description)) details.Children.Add(new TextBlock { Text = plugin.Instance.Description, Foreground = Brush(Muted), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(22, 2, 12, 0), FontSize = 11 });
             line.Children.Add(details);
             var hasSettings = plugin.Instance is IOverlayPluginSettings;
-            var settingsButton = Button("Settings", Brush(Surface2), WpfBrushes.White, () =>
+            var settingsButton = Button(L("Settings"), Brush(Surface2), WpfBrushes.White, () =>
             {
                 if (plugin.Instance is IOverlayPluginSettings settings) settings.OpenSettings(this);
             });
             settingsButton.IsEnabled = hasSettings;
-            settingsButton.ToolTip = hasSettings ? "Open plugin settings" : "This plugin does not provide a settings window";
+            settingsButton.ToolTip = hasSettings ? L("Open plugin settings") : L("This plugin does not provide a settings window");
             Grid.SetColumn(settingsButton, 1); line.Children.Add(settingsButton);
             return line;
         }
@@ -216,7 +239,7 @@ public partial class MainWindow
         private void ToggleOverlay()
         {
             if (_host.IsVisible) _host.HideOverlayToTray(); else _host.ShowOverlayFromTray();
-            _overlayState.Text = _host.IsVisible ? "●  Running on desktop" : "○  Hidden in tray";
+            _overlayState.Text = L(_host.IsVisible ? "●  Running on desktop" : "○  Hidden in tray");
         }
         private void SetPluginVisibility(LoadedOverlayPlugin plugin, bool visible)
         {
@@ -264,5 +287,9 @@ public partial class MainWindow
             "Black" => Colors.Black, "White" => Colors.White, _ => WpfColor.FromRgb(53, 221, 240)
         };
         private static string ColorName(WpfColor color) => color == Colors.Red ? "Red" : color == Colors.LimeGreen ? "Green" : color == Colors.DodgerBlue ? "Blue" : color == Colors.DarkOrange ? "Orange" : color == Colors.Black ? "Black" : color == Colors.White ? "White" : "Turquoise";
+
+        private string L(string text) => UiText.Get(_host._uiLanguage, text);
+        private sealed record LanguageEntry(string Value, string Label);
+        private sealed record PositionEntry(string Value, string Label);
     }
 }

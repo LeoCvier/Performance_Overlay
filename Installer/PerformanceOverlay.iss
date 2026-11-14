@@ -1,5 +1,5 @@
 #define MyAppName "PerformanceOverlay"
-#define MyAppVersion "1.1.4"
+#define MyAppVersion "1.1.5"
 #define MyAppPublisher "LeoCvier"
 #define MyAppExeName "PerformanceOverlay.exe"
 

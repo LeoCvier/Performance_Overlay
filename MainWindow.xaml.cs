@@ -53,6 +53,7 @@ public partial class MainWindow : Window
     private string SettingsPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PerformanceOverlay", "settings.json");
     private string PluginDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PerformanceOverlay", "Plugins");
     private string _overlayPosition = "Top Left";
+    private string _uiLanguage = "English";
     private Forms.ToolStripMenuItem? _pluginMenu;
     private readonly OverlayPluginManager _pluginManager = new();
     private readonly List<LoadedOverlayPlugin> _loadedPlugins = new();
@@ -344,28 +345,28 @@ public partial class MainWindow : Window
             };
 
             _trayMenu = new Forms.ContextMenuStrip();
-            _trayMenu.Items.Add("Settings…", null, (_, _) => OpenCoreSettings());
-            _trayMenu.Items.Add("Show overlay", null, (_, _) => ShowOverlayFromTray());
-            _trayMenu.Items.Add("Hide overlay", null, (_, _) => HideOverlayToTray());
+            _trayMenu.Items.Add(Ui("Settings…"), null, (_, _) => OpenCoreSettings());
+            _trayMenu.Items.Add(Ui("Show overlay"), null, (_, _) => ShowOverlayFromTray());
+            _trayMenu.Items.Add(Ui("Hide overlay"), null, (_, _) => HideOverlayToTray());
             _trayMenu.Items.Add(new Forms.ToolStripSeparator());
 
-            _pluginMenu = new Forms.ToolStripMenuItem("Plugins");
+            _pluginMenu = new Forms.ToolStripMenuItem(Ui("Plugins"));
             _pluginMenu.DropDownOpening += (_, _) => RefreshPluginMenu();
             _trayMenu.Items.Add(_pluginMenu);
 
-            _trayMenu.Items.Add("Reload everything", null, async (_, _) => await ReloadAllAsync());
-            _trayMenu.Items.Add("Configure hotkeys…", null, (_, _) => ShowHotkeySettings());
+            _trayMenu.Items.Add(Ui("Reload everything"), null, async (_, _) => await ReloadAllAsync());
+            _trayMenu.Items.Add(Ui("Configure hotkeys…"), null, (_, _) => ShowHotkeySettings());
             _trayMenu.Items.Add(new Forms.ToolStripSeparator());
-            _trayMenu.Items.Add("Help", null, (_, _) => ShowIndicatorHelp());
+            _trayMenu.Items.Add(Ui("Help"), null, (_, _) => ShowIndicatorHelp());
             _trayMenu.Items.Add(new Forms.ToolStripSeparator());
             var version = typeof(MainWindow).Assembly.GetName().Version;
-            var versionItem = new Forms.ToolStripMenuItem($"Version {version?.ToString(3) ?? "unknown"}")
+            var versionItem = new Forms.ToolStripMenuItem(string.Format(Ui("Version {0}"), version?.ToString(3) ?? "unknown"))
             {
                 Enabled = false
             };
             _trayMenu.Items.Add(versionItem);
             _trayMenu.Items.Add(new Forms.ToolStripSeparator());
-            _trayMenu.Items.Add("Exit", null, (_, _) => StopOverlayAnimation());
+            _trayMenu.Items.Add(Ui("Exit"), null, (_, _) => StopOverlayAnimation());
             _trayIcon.ContextMenuStrip = _trayMenu;
             _trayIcon.MouseClick += (_, e) =>
             {
@@ -408,15 +409,16 @@ public partial class MainWindow : Window
     {
         if (_pluginMenu is null) return;
         _pluginMenu.DropDownItems.Clear();
-        _pluginMenu.DropDownItems.Add("Load plugin…", null, (_, _) => LoadPluginFromDialog());
-        _pluginMenu.DropDownItems.Add("Discover", null, (_, _) => OpenPluginCatalog());
+        _pluginMenu.Text = Ui("Plugins");
+        _pluginMenu.DropDownItems.Add(Ui("Load plugin…"), null, (_, _) => LoadPluginFromDialog());
+        _pluginMenu.DropDownItems.Add(Ui("Discover"), null, (_, _) => OpenPluginCatalog());
         _pluginMenu.DropDownItems.Add(new Forms.ToolStripSeparator());
-        _pluginMenu.DropDownItems.Add("Open plugins folder", null, (_, _) => OpenPluginFolder());
+        _pluginMenu.DropDownItems.Add(Ui("Open plugins folder"), null, (_, _) => OpenPluginFolder());
         _pluginMenu.DropDownItems.Add(new Forms.ToolStripSeparator());
 
         if (_loadedPlugins.Count == 0 && _pluginLoadErrors.Count == 0)
         {
-            _pluginMenu.DropDownItems.Add("No plugins loaded").Enabled = false;
+            _pluginMenu.DropDownItems.Add(Ui("No plugins loaded yet.")).Enabled = false;
             return;
         }
 
@@ -436,13 +438,13 @@ public partial class MainWindow : Window
         if (_pluginLoadErrors.Count > 0)
         {
             _pluginMenu.DropDownItems.Add(new Forms.ToolStripSeparator());
-            var errors = new Forms.ToolStripMenuItem($"Plugin load errors ({_pluginLoadErrors.Count})")
+            var errors = new Forms.ToolStripMenuItem(string.Format(Ui("Plugin load errors ({0})"), _pluginLoadErrors.Count))
             {
                 ToolTipText = string.Join(Environment.NewLine, _pluginLoadErrors)
             };
             errors.Click += (_, _) => System.Windows.MessageBox.Show(
                 string.Join(Environment.NewLine + Environment.NewLine, _pluginLoadErrors),
-                "Performance Overlay – Plugin errors",
+                Ui("Performance Overlay – Plugin errors"),
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
             _pluginMenu.DropDownItems.Add(errors);
@@ -452,8 +454,8 @@ public partial class MainWindow : Window
     private void LoadPluginFromDialog()
     {
         var permission = System.Windows.MessageBox.Show(
-            "Plugins run inside PerformanceOverlay with the same permissions as the application. Only load plugins from sources you trust.",
-            "Load plugin",
+            Ui("Plugins run inside PerformanceOverlay with the same permissions as the application. Only load plugins from sources you trust."),
+            Ui("Load plugin"),
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning);
         if (permission != MessageBoxResult.Yes) return;
@@ -461,7 +463,7 @@ public partial class MainWindow : Window
         Directory.CreateDirectory(PluginDirectory);
         using var dialog = new Forms.OpenFileDialog
         {
-            Title = "Select a PerformanceOverlay plugin",
+            Title = Ui("Select a PerformanceOverlay plugin"),
             Filter = "PerformanceOverlay plugin assemblies (*.dll)|*.dll",
             CheckFileExists = true,
             InitialDirectory = PluginDirectory
@@ -491,7 +493,7 @@ public partial class MainWindow : Window
         {
             _pluginLoadErrors.Add($"{pluginName}: {ex.Message}");
             RefreshPluginMenu();
-            System.Windows.MessageBox.Show(ex.Message, "Plugin could not be loaded", MessageBoxButton.OK, MessageBoxImage.Error);
+            System.Windows.MessageBox.Show(ex.Message, Ui("Plugin could not be loaded"), MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -582,18 +584,18 @@ public partial class MainWindow : Window
 
     private void ShowIndicatorHelp()
     {
-        const string help =
-            "PERFORMANCE OVERLAY – INDICATOR GUIDE\n\n" +
-            "GREEN DOT: At least one sensor has a new reading available. Press the reload hotkey to reveal available readings.\n\n" +
-            "FPS AVG: Current average frames per second reported by Windows graphics events for the captured application.\n" +
-            "FPS MAX / FPS MIN: Highest and lowest FPS recorded during the current session.\n\n" +
-            "CPU LOAD: Processor utilization.\n" +
-            "CPU TEMP: Processor temperature, when supported by the hardware.\n" +
-            "RAM LOAD: System memory usage.\n" +
-            "GPU LOAD: Graphics processor utilization.\n" +
-            "GPU TEMP: Graphics processor temperature.\n\n" +
-            "After a focus change, FPS fields show — while waiting for frame data. If no data arrives within five seconds, the dashes remain for five seconds and the FPS fields hide until data returns. After active capture goes quiet, the same five-second dash period starts after five seconds without a frame.";
-        System.Windows.MessageBox.Show(help, "Performance Overlay – Help", MessageBoxButton.OK, MessageBoxImage.Information);
+        string help =
+            Ui("PERFORMANCE OVERLAY – INDICATOR GUIDE\n\n") +
+            Ui("GREEN DOT: At least one sensor has a new reading available. Press the reload hotkey to reveal available readings.\n\n") +
+            Ui("FPS AVG: Current average frames per second reported by Windows graphics events for the captured application.\n") +
+            Ui("FPS MAX / FPS MIN: Highest and lowest FPS recorded during the current session.\n\n") +
+            Ui("CPU LOAD: Processor utilization.\n") +
+            Ui("CPU TEMP: Processor temperature, when supported by the hardware.\n") +
+            Ui("RAM LOAD: System memory usage.\n") +
+            Ui("GPU LOAD: Graphics processor utilization.\n") +
+            Ui("GPU TEMP: Graphics processor temperature.\n\n") +
+            Ui("After a focus change, FPS fields show — while waiting for frame data. If no data arrives within five seconds, the dashes remain for five seconds and the FPS fields hide until data returns. After active capture goes quiet, the same five-second dash period starts after five seconds without a frame.");
+        System.Windows.MessageBox.Show(help, Ui("Performance Overlay – Help"), MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void ShowOverlayFromTray()
@@ -630,6 +632,9 @@ public partial class MainWindow : Window
         {
             if (!File.Exists(SettingsPath)) return;
             using var doc = JsonDocument.Parse(File.ReadAllText(SettingsPath));
+            if (doc.RootElement.TryGetProperty("Language", out var language) && language.GetString() is string savedLanguage &&
+                savedLanguage is "English" or "German")
+                _uiLanguage = savedLanguage;
             if (doc.RootElement.TryGetProperty("Position", out var pos) && pos.GetString() is string savedPosition &&
                 new[] { "Top Left", "Top Center", "Top Right" }.Contains(savedPosition))
                 _overlayPosition = savedPosition;
@@ -657,10 +662,33 @@ public partial class MainWindow : Window
         {
             var dir = Path.GetDirectoryName(SettingsPath)!;
             Directory.CreateDirectory(dir);
-            var data = new { Accent = $"{_accentColor.R:X2}{_accentColor.G:X2}{_accentColor.B:X2}", Position = _overlayPosition, Hotkeys = _hotkeys };
+            var data = new { Accent = $"{_accentColor.R:X2}{_accentColor.G:X2}{_accentColor.B:X2}", Position = _overlayPosition, Language = _uiLanguage, Hotkeys = _hotkeys };
             File.WriteAllText(SettingsPath, JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true }));
         }
         catch { }
+    }
+
+    private string Ui(string english) => UiText.Get(_uiLanguage, english);
+
+    private void SetUiLanguage(string language)
+    {
+        if (language is not ("English" or "German")) return;
+        _uiLanguage = language;
+        SaveSettings();
+        if (_trayMenu is null) return;
+        if (_trayMenu.Items.Count >= 13)
+        {
+            ((Forms.ToolStripMenuItem)_trayMenu.Items[0]).Text = Ui("Settings…");
+            ((Forms.ToolStripMenuItem)_trayMenu.Items[1]).Text = Ui("Show overlay");
+            ((Forms.ToolStripMenuItem)_trayMenu.Items[2]).Text = Ui("Hide overlay");
+            ((Forms.ToolStripMenuItem)_trayMenu.Items[5]).Text = Ui("Reload everything");
+            ((Forms.ToolStripMenuItem)_trayMenu.Items[6]).Text = Ui("Configure hotkeys…");
+            ((Forms.ToolStripMenuItem)_trayMenu.Items[8]).Text = Ui("Help");
+            var version = typeof(MainWindow).Assembly.GetName().Version;
+            ((Forms.ToolStripMenuItem)_trayMenu.Items[10]).Text = string.Format(Ui("Version {0}"), version?.ToString(3) ?? "unknown");
+            ((Forms.ToolStripMenuItem)_trayMenu.Items[12]).Text = Ui("Exit");
+        }
+        RefreshPluginMenu();
     }
 
     private bool RegisterConfiguredHotkeys(IntPtr hwnd, bool showErrors)
@@ -674,26 +702,26 @@ public partial class MainWindow : Window
             if (!RegisterHotKey(hwnd, pair.Key, h.Modifiers, h.Key)) failed.Add($"{h.Display} (error {Marshal.GetLastWin32Error()})");
         }
         if (failed.Count == 0) return true;
-        if (showErrors) System.Windows.MessageBox.Show("These hotkeys could not be registered:\n" + string.Join("\n", failed), "Performance Overlay", MessageBoxButton.OK, MessageBoxImage.Warning);
+        if (showErrors) System.Windows.MessageBox.Show(Ui("These hotkeys could not be registered:\n") + string.Join("\n", failed), "Performance Overlay", MessageBoxButton.OK, MessageBoxImage.Warning);
         return false;
     }
 
     private void ShowHotkeySettings()
     {
         var hwnd = new WindowInteropHelper(this).Handle;
-        var dialog = new Window { Title = "Configure hotkeys", Width = 390, Height = 280, WindowStartupLocation = WindowStartupLocation.CenterScreen, ResizeMode = ResizeMode.NoResize, Owner = this, Background = System.Windows.Media.Brushes.White };
+        var dialog = new Window { Title = Ui("Configure hotkeys"), Width = 390, Height = 280, WindowStartupLocation = WindowStartupLocation.CenterScreen, ResizeMode = ResizeMode.NoResize, Owner = this, Background = System.Windows.Media.Brushes.White };
         var panel = new StackPanel { Margin = new Thickness(16) };
-        panel.Children.Add(new TextBlock { Text = "Select a field and press the desired key combination (at least one modifier key).", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,12) });
+        panel.Children.Add(new TextBlock { Text = Ui("Select a field and press the desired key combination (at least one modifier key)."), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,12) });
         var boxes = new Dictionary<int, System.Windows.Controls.TextBox>();
         foreach (var pair in _hotkeys)
         {
-            string label = pair.Key == HotkeyIdReset ? "Reset FPS max/min" : pair.Key == HotkeyIdExit ? "Exit overlay" : "Reload everything";
+            string label = Ui(pair.Key == HotkeyIdReset ? "Reset FPS max/min" : pair.Key == HotkeyIdExit ? "Exit overlay" : "Reload everything");
             panel.Children.Add(new TextBlock { Text = label, Margin = new Thickness(0,6,0,3), FontWeight = FontWeights.SemiBold });
             var box = new System.Windows.Controls.TextBox { Text = pair.Value.Display, IsReadOnly = true, Height = 28, Tag = pair.Key };
             box.PreviewKeyDown += (_, e) =>
             {
                 e.Handled = true;
-                if (e.Key == Key.Escape) { box.Text = "Not set"; box.Tag = new HotkeyBinding { Modifiers = 0, Key = 0, Display = "Not set" }; return; }
+                if (e.Key == Key.Escape) { box.Text = Ui("Not set"); box.Tag = new HotkeyBinding { Modifiers = 0, Key = 0, Display = "Not set" }; return; }
                 Key key = e.Key == Key.System ? e.SystemKey : e.Key;
                 if (key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin) return;
                 uint mods = 0; var m = Keyboard.Modifiers;
@@ -701,7 +729,7 @@ public partial class MainWindow : Window
                 if (m.HasFlag(ModifierKeys.Alt)) mods |= ModAlt;
                 if (m.HasFlag(ModifierKeys.Shift)) mods |= ModShift;
                 if (m.HasFlag(ModifierKeys.Windows)) mods |= ModWin;
-                if (mods == 0) { box.Text = "Use Ctrl/Alt/Shift/Win + a key"; return; }
+                if (mods == 0) { box.Text = Ui("Use Ctrl/Alt/Shift/Win + a key"); return; }
                 uint vk = (uint)KeyInterop.VirtualKeyFromKey(key);
                 string prefix = string.Join(" + ", new[] { (mods & ModControl) != 0 ? "Ctrl" : null, (mods & ModAlt) != 0 ? "Alt" : null, (mods & ModShift) != 0 ? "Shift" : null, (mods & ModWin) != 0 ? "Win" : null }.Where(x => x is not null));
                 var binding = new HotkeyBinding { Modifiers = mods, Key = vk, Display = prefix + " + " + key };
@@ -710,8 +738,8 @@ public partial class MainWindow : Window
             boxes[pair.Key] = box; panel.Children.Add(box);
         }
         var buttons = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment = System.Windows.HorizontalAlignment.Right, Margin = new Thickness(0,16,0,0) };
-        var save = new System.Windows.Controls.Button { Content = "Save", Width = 90, Margin = new Thickness(0,0,8,0), IsDefault = true };
-        var cancel = new System.Windows.Controls.Button { Content = "Cancel", Width = 90, IsCancel = true };
+        var save = new System.Windows.Controls.Button { Content = Ui("Save"), Width = 90, Margin = new Thickness(0,0,8,0), IsDefault = true };
+        var cancel = new System.Windows.Controls.Button { Content = Ui("Cancel"), Width = 90, IsCancel = true };
         save.Click += (_, _) =>
         {
             var proposed = _hotkeys.ToDictionary(x => x.Key, x => x.Value.Clone());
