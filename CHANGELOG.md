@@ -2,6 +2,14 @@
 
 This file records the published versions of PerformanceOverlay and the changes included in each release.
 
+## [1.2.0] - 2026-11-15
+
+- Rework the settings window with responsive sizing and functional General, Plugins, Shortcuts and Help pages.
+- Add persistent menu translations in English, German, French, Japanese and Simplified Chinese.
+- Let plugins expose their settings from the Plugins page; update the Customizable Overlay plugin accordingly.
+- Route tray Help and hotkey actions to their matching settings pages.
+- Preserve overlay metric labels and values across menu language changes.
+
 ## [1.1.7] - 2026-11-15
 
 - Add in-app Help and Shortcuts pages with clearer guidance and direct hotkey editing.
