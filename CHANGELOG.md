@@ -2,6 +2,10 @@
 
 This file records the published versions of PerformanceOverlay and the changes included in each release.
 
+## [1.3.2] - 2026-11-22
+
+- Refine the modern settings window and custom dropdown styling for the public release.
+
 ## [1.3.1] - 2026-11-22
 
 - Redesign the settings window to match the website and overlay with a unified dark palette, accent highlights, responsive cards and clearer tabs.
