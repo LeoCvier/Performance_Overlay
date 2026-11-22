@@ -102,6 +102,16 @@ internal static class UiText
         ["Click here, then press a key combination"] = "Hier klicken und eine Tastenkombination drücken",
         ["Sensors"] = "Sensoren", ["FPS display behavior"] = "FPS-Anzeigeverhalten", ["FPS"] = "FPS",
         ["Ctrl"] = "Strg", ["Shift"] = "Umschalt",
+        ["Performance Overlay Settings"] = "Performance Overlay – Einstellungen", ["RUNNING"] = "LÄUFT", ["HIDDEN"] = "AUSGEBLENDET", ["Hide"] = "Ausblenden", ["Show"] = "Anzeigen",
+        ["Make it yours"] = "Gestalte dein Overlay", ["Tune the look, position and information in your overlay."] = "Passe Aussehen, Position und angezeigte Werte an.",
+        ["APPEARANCE"] = "DARSTELLUNG", ["PLACEMENT"] = "POSITION", ["METRICS"] = "MESSWERTE", ["YOUR SETUP"] = "DEINE EINSTELLUNGEN",
+        ["Displayed values"] = "Angezeigte Werte", ["Choose what appears, then move each value into place."] = "Wähle die Werte aus und bringe sie in die gewünschte Reihenfolge.",
+        ["Overlay size"] = "Overlay-Größe", ["Hover transparency"] = "Transparenz bei Mausnähe", ["Hover distance"] = "Abstand für Mausnähe",
+        ["Hover fading only changes visibility; the overlay remains click-through."] = "Das Ausblenden ändert nur die Sichtbarkeit. Das Overlay bleibt durchklickbar.",
+        ["Changes apply instantly and are saved automatically."] = "Änderungen werden sofort angewendet und automatisch gespeichert.",
+        ["Language, status and quick actions."] = "Sprache, Status und Schnellaktionen.", ["Everything from the tray menu, right here."] = "Alle Aktionen aus dem Infobereich-Menü an einem Ort.",
+        ["Preferences save as you go"] = "Einstellungen werden direkt gespeichert", ["Your language, appearance and metric choices are stored for your Windows account."] = "Sprache, Aussehen und Messwerte werden für dein Windows-Konto gespeichert.",
+        ["Choose color…"] = "Farbe wählen…", ["Primary"] = "Primär", ["Screen"] = "Bildschirm",
     };
 
     private static readonly IReadOnlyDictionary<string, string> French = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -134,7 +144,17 @@ internal static class UiText
         ["Save"] = "Enregistrer", ["Cancel"] = "Annuler", ["Close"] = "Fermer", ["No plugins loaded"] = "Aucune extension chargée", ["No plugins loaded yet"] = "Aucune extension chargée pour l’instant",
         ["Click a shortcut field and press a combination with at least one modifier key. Press Escape to clear a shortcut."] = "Cliquez sur un raccourci et saisissez une combinaison avec au moins une touche de modification. Échap efface le raccourci.",
         ["Restore defaults"] = "Rétablir les valeurs par défaut", ["Clear the current session's FPS high and low values"] = "Effacer les valeurs FPS minimale et maximale de la session", ["Restart sensors and reload plugins"] = "Redémarrer les capteurs et recharger les extensions",
-        ["Click here, then press a key combination"] = "Cliquez ici puis saisissez un raccourci", ["Sensors"] = "Capteurs", ["FPS display behavior"] = "Affichage des FPS", ["FPS"] = "FPS", ["Ctrl"] = "Ctrl", ["Alt"] = "Alt", ["Shift"] = "Maj"
+        ["Click here, then press a key combination"] = "Cliquez ici puis saisissez un raccourci", ["Sensors"] = "Capteurs", ["FPS display behavior"] = "Affichage des FPS", ["FPS"] = "FPS", ["Ctrl"] = "Ctrl", ["Alt"] = "Alt", ["Shift"] = "Maj",
+        ["Performance Overlay Settings"] = "Paramètres de Performance Overlay", ["RUNNING"] = "EN COURS", ["HIDDEN"] = "MASQUÉ", ["Hide"] = "Masquer", ["Show"] = "Afficher",
+        ["Make it yours"] = "Personnalisez votre overlay", ["Tune the look, position and information in your overlay."] = "Réglez l’apparence, la position et les informations affichées.",
+        ["APPEARANCE"] = "APPARENCE", ["PLACEMENT"] = "POSITION", ["METRICS"] = "MESURES", ["YOUR SETUP"] = "VOTRE CONFIGURATION",
+        ["Displayed values"] = "Valeurs affichées", ["Choose what appears, then move each value into place."] = "Choisissez les valeurs et définissez leur ordre.",
+        ["Overlay size"] = "Taille de l’overlay", ["Hover transparency"] = "Transparence au survol", ["Hover distance"] = "Distance de survol",
+        ["Hover fading only changes visibility; the overlay remains click-through."] = "Le fondu modifie uniquement la visibilité ; l’overlay reste traversable au clic.",
+        ["Changes apply instantly and are saved automatically."] = "Les modifications sont appliquées et enregistrées automatiquement.",
+        ["Language, status and quick actions."] = "Langue, état et actions rapides.", ["Everything from the tray menu, right here."] = "Toutes les actions du menu de notification sont ici.",
+        ["Preferences save as you go"] = "Les préférences sont enregistrées automatiquement", ["Your language, appearance and metric choices are stored for your Windows account."] = "La langue, l’apparence et les mesures sont enregistrées pour votre compte Windows.",
+        ["Choose color…"] = "Choisir une couleur…", ["Primary"] = "Principal", ["Screen"] = "Écran"
     };
 
     private static readonly IReadOnlyDictionary<string, string> Japanese = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -167,7 +187,17 @@ internal static class UiText
         ["Save"] = "保存", ["Cancel"] = "キャンセル", ["Close"] = "閉じる", ["No plugins loaded"] = "プラグインはありません", ["No plugins loaded yet"] = "プラグインはまだありません",
         ["Click a shortcut field and press a combination with at least one modifier key. Press Escape to clear a shortcut."] = "ショートカット欄をクリックして、修飾キーを含む組み合わせを押してください。Esc キーで解除できます。",
         ["Restore defaults"] = "既定値に戻す", ["Clear the current session's FPS high and low values"] = "現在のセッションの FPS 最大値と最小値をリセット", ["Restart sensors and reload plugins"] = "センサーを再起動してプラグインを再読み込み",
-        ["Click here, then press a key combination"] = "ここをクリックしてキーの組み合わせを押してください", ["Sensors"] = "センサー", ["FPS display behavior"] = "FPS の表示動作", ["FPS"] = "FPS", ["Ctrl"] = "Ctrl", ["Alt"] = "Alt", ["Shift"] = "Shift"
+        ["Click here, then press a key combination"] = "ここをクリックしてキーの組み合わせを押してください", ["Sensors"] = "センサー", ["FPS display behavior"] = "FPS の表示動作", ["FPS"] = "FPS", ["Ctrl"] = "Ctrl", ["Alt"] = "Alt", ["Shift"] = "Shift",
+        ["Performance Overlay Settings"] = "Performance Overlay の設定", ["RUNNING"] = "実行中", ["HIDDEN"] = "非表示", ["Hide"] = "隠す", ["Show"] = "表示",
+        ["Make it yours"] = "オーバーレイをカスタマイズ", ["Tune the look, position and information in your overlay."] = "外観、位置、表示する情報を調整します。",
+        ["APPEARANCE"] = "外観", ["PLACEMENT"] = "配置", ["METRICS"] = "メトリクス", ["YOUR SETUP"] = "設定",
+        ["Displayed values"] = "表示する値", ["Choose what appears, then move each value into place."] = "表示項目を選び、順序を調整します。",
+        ["Overlay size"] = "オーバーレイのサイズ", ["Hover transparency"] = "マウス付近の透明度", ["Hover distance"] = "マウス反応距離",
+        ["Hover fading only changes visibility; the overlay remains click-through."] = "フェードは表示状態のみ変更し、クリック透過は維持されます。",
+        ["Changes apply instantly and are saved automatically."] = "変更はすぐに反映され、自動保存されます。",
+        ["Language, status and quick actions."] = "言語、状態、クイック操作。", ["Everything from the tray menu, right here."] = "タスクトレイの操作をここから実行できます。",
+        ["Preferences save as you go"] = "設定は自動保存されます", ["Your language, appearance and metric choices are stored for your Windows account."] = "言語、外観、表示項目は Windows アカウントに保存されます。",
+        ["Choose color…"] = "色を選択…", ["Primary"] = "メイン", ["Screen"] = "画面"
     };
 
     private static readonly IReadOnlyDictionary<string, string> Chinese = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -200,7 +230,17 @@ internal static class UiText
         ["Save"] = "保存", ["Cancel"] = "取消", ["Close"] = "关闭", ["No plugins loaded"] = "没有已加载的插件", ["No plugins loaded yet"] = "尚未加载插件",
         ["Click a shortcut field and press a combination with at least one modifier key. Press Escape to clear a shortcut."] = "点击快捷键输入框，然后按下至少包含一个修饰键的组合键。按 Esc 可清除快捷键。",
         ["Restore defaults"] = "恢复默认值", ["Clear the current session's FPS high and low values"] = "清除当前会话的 FPS 最高和最低值", ["Restart sensors and reload plugins"] = "重启传感器并重新加载插件",
-        ["Click here, then press a key combination"] = "点击此处，然后按下组合键", ["Sensors"] = "传感器", ["FPS display behavior"] = "FPS 显示方式", ["FPS"] = "FPS", ["Ctrl"] = "Ctrl", ["Alt"] = "Alt", ["Shift"] = "Shift"
+        ["Click here, then press a key combination"] = "点击此处，然后按下组合键", ["Sensors"] = "传感器", ["FPS display behavior"] = "FPS 显示方式", ["FPS"] = "FPS", ["Ctrl"] = "Ctrl", ["Alt"] = "Alt", ["Shift"] = "Shift",
+        ["Performance Overlay Settings"] = "Performance Overlay 设置", ["RUNNING"] = "运行中", ["HIDDEN"] = "已隐藏", ["Hide"] = "隐藏", ["Show"] = "显示",
+        ["Make it yours"] = "自定义覆盖层", ["Tune the look, position and information in your overlay."] = "调整覆盖层的外观、位置和显示信息。",
+        ["APPEARANCE"] = "外观", ["PLACEMENT"] = "位置", ["METRICS"] = "指标", ["YOUR SETUP"] = "你的设置",
+        ["Displayed values"] = "显示项目", ["Choose what appears, then move each value into place."] = "选择要显示的项目并调整顺序。",
+        ["Overlay size"] = "覆盖层大小", ["Hover transparency"] = "鼠标悬停透明度", ["Hover distance"] = "悬停距离",
+        ["Hover fading only changes visibility; the overlay remains click-through."] = "淡出只改变显示效果；覆盖层仍可穿透点击。",
+        ["Changes apply instantly and are saved automatically."] = "更改会立即应用并自动保存。",
+        ["Language, status and quick actions."] = "语言、状态和快捷操作。", ["Everything from the tray menu, right here."] = "系统托盘菜单中的操作都在这里。",
+        ["Preferences save as you go"] = "设置会自动保存", ["Your language, appearance and metric choices are stored for your Windows account."] = "语言、外观和指标设置会保存到你的 Windows 帐户。",
+        ["Choose color…"] = "选择颜色…", ["Primary"] = "主显示器", ["Screen"] = "显示器"
     };
 
     public static bool IsSupported(string language) => language is "English" or "German" or "French" or "Japanese" or "Chinese";

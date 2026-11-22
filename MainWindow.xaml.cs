@@ -344,6 +344,8 @@ public partial class MainWindow : Window
             if (!metric.Label.StartsWith("FPS ", StringComparison.Ordinal))
                 metric.Block.Visibility = Visibility.Collapsed;
         RefreshMetricVisibility();
+        if (Environment.GetCommandLineArgs().Any(arg => arg.Equals("--settings", StringComparison.OrdinalIgnoreCase)))
+            Dispatcher.BeginInvoke(new Action(() => OpenCoreSettings("overlay")));
     }
 
 

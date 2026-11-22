@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using WpfBinding = System.Windows.Data.Binding;
 using System.Windows.Media;
 using PerformanceOverlay.PluginApi;
 using WpfColor = System.Windows.Media.Color;
@@ -10,6 +12,7 @@ using WpfCheckBox = System.Windows.Controls.CheckBox;
 using WpfComboBox = System.Windows.Controls.ComboBox;
 using WpfFontFamily = System.Windows.Media.FontFamily;
 using WpfBrushes = System.Windows.Media.Brushes;
+using WpfControl = System.Windows.Controls.Control;
 using Forms = System.Windows.Forms;
 
 namespace PerformanceOverlay;
@@ -38,7 +41,6 @@ public partial class MainWindow
         private readonly StackPanel _managedPluginList = new();
         private readonly TextBlock _managedPluginSummary = new();
         private readonly TextBlock _overlayState = new();
-        private readonly TextBlock _versionText = new();
         private System.Windows.Controls.TabControl? _pages;
         private UIElement? _generalPage;
         private UIElement? _customizationPage;
@@ -48,83 +50,293 @@ public partial class MainWindow
         private readonly Dictionary<string, UIElement> _metricRows = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<int, HotkeyBinding> _hotkeyDraft = new();
         private readonly Dictionary<int, System.Windows.Controls.TextBox> _hotkeyInputs = new();
+        private readonly List<ScrollViewer> _pageScrollers = new();
 
-        private static readonly WpfColor Bg = WpfColor.FromRgb(14, 18, 27);
-        private static readonly WpfColor Surface = WpfColor.FromRgb(23, 29, 42);
-        private static readonly WpfColor Surface2 = WpfColor.FromRgb(31, 39, 55);
-        private static readonly WpfColor Muted = WpfColor.FromRgb(157, 169, 190);
-        private static readonly WpfColor Accent = WpfColor.FromRgb(57, 215, 230);
+        private static readonly WpfColor Bg = WpfColor.FromRgb(8, 11, 16);
+        private static readonly WpfColor Surface = WpfColor.FromRgb(16, 22, 31);
+        private static readonly WpfColor Surface2 = WpfColor.FromRgb(18, 26, 36);
+        private static readonly WpfColor Muted = WpfColor.FromRgb(153, 168, 184);
+        private static readonly WpfColor Accent = WpfColor.FromRgb(53, 221, 240);
 
         public CoreSettingsWindow(MainWindow host, string initialPage)
         {
             _host = host;
             Title = L("Performance Overlay Settings");
             var workArea = SystemParameters.WorkArea;
-            Width = Math.Min(960, Math.Max(760, workArea.Width - 80)); Height = Math.Min(760, Math.Max(600, workArea.Height - 80));
-            MinWidth = 720; MinHeight = 560; ResizeMode = ResizeMode.CanResize; WindowStyle = WindowStyle.SingleBorderWindow; ShowInTaskbar = true;
+            Width = Math.Min(1040, Math.Max(680, workArea.Width - 56)); Height = Math.Min(820, Math.Max(560, workArea.Height - 56));
+            MinWidth = Math.Min(720, Width); MinHeight = Math.Min(540, Height); ResizeMode = ResizeMode.CanResize; WindowStyle = WindowStyle.SingleBorderWindow; ShowInTaskbar = true;
             WindowStartupLocation = WindowStartupLocation.CenterScreen; Background = Brush(Bg); Foreground = WpfBrushes.White; FontFamily = new WpfFontFamily("Segoe UI");
-            var root = new DockPanel { Margin = new Thickness(22, 16, 22, 16) }; Content = root;
-            var header = new StackPanel { Margin = new Thickness(0, 0, 0, 14) };
-            header.Children.Add(new TextBlock { Text = L("Performance Overlay"), FontSize = 24, FontWeight = FontWeights.SemiBold });
-            var status = new Grid { Margin = new Thickness(0, 10, 0, 0) }; status.ColumnDefinitions.Add(new ColumnDefinition()); status.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            _overlayState.Text = _host.IsVisible ? L("●  Running on desktop") : L("○  Hidden in tray"); _overlayState.VerticalAlignment = VerticalAlignment.Center;
-            status.Children.Add(_overlayState); var toggle = Button(L(_host.IsVisible ? "Hide overlay" : "Show overlay"), Accent, Surface, ToggleOverlay); Grid.SetColumn(toggle, 1); status.Children.Add(toggle); header.Children.Add(status);
-            DockPanel.SetDock(header, Dock.Top); root.Children.Add(header);
-            _pages = new System.Windows.Controls.TabControl { Background = Brush(Bg), BorderBrush = Brush(Surface2), Padding = new Thickness(10) }; root.Children.Add(_pages);
+            var root = new DockPanel { Margin = new Thickness(26, 20, 26, 18) }; Content = root;
+            SizeChanged += (_, _) => FitTabPages();
+            var header = BuildWindowHeader(); DockPanel.SetDock(header, Dock.Top); root.Children.Add(header);
+            _pages = new System.Windows.Controls.TabControl
+            {
+                Background = Brush(Bg), BorderThickness = new Thickness(0),
+                ItemContainerStyle = BuildTabItemStyle(), ItemsPanel = BuildTabItemsPanel(),
+                Template = BuildTabControlTemplate()
+            };
+            root.Children.Add(_pages);
             _generalPage = BuildGeneralPage(); _customizationPage = BuildCustomizationPage(); _pluginsPage = BuildPluginsPage(); _shortcutsPage = BuildShortcutsPage(); _helpPage = BuildHelpPage();
             AddTab("general", "General", _generalPage); AddTab("customization", "Overlay", _customizationPage); AddTab("plugins", "Plugins", _pluginsPage); AddTab("shortcuts", "Shortcuts", _shortcutsPage); AddTab("help", "Help", _helpPage);
-            var footer = new TextBlock { Text = $"{L("Performance Overlay")} · v{typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "unknown"}", Foreground = Brush(Muted), FontSize = 11, Margin = new Thickness(0, 10, 0, 0), HorizontalAlignment = System.Windows.HorizontalAlignment.Right };
-            DockPanel.SetDock(footer, Dock.Bottom); root.Children.Add(footer);
             RefreshPluginList(); Navigate(initialPage);
+        }
+
+        private UIElement BuildWindowHeader()
+        {
+            var header = new Grid { Margin = new Thickness(0, 0, 0, 16) };
+            header.ColumnDefinitions.Add(new ColumnDefinition()); header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var brand = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            var mark = new Border { Width = 42, Height = 42, CornerRadius = new CornerRadius(12), BorderThickness = new Thickness(1), BorderBrush = Brush(WpfColor.FromArgb(86, Accent.R, Accent.G, Accent.B)), Background = new LinearGradientBrush(WpfColor.FromRgb(24, 49, 60), WpfColor.FromRgb(16, 25, 36), 45), Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Accent, BlurRadius = 18, ShadowDepth = 0, Opacity = .18 } };
+            mark.Child = new TextBlock { Text = "P", Foreground = Brush(Accent), FontSize = 23, FontWeight = FontWeights.Bold, HorizontalAlignment = System.Windows.HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            brand.Children.Add(mark);
+            var titles = new StackPanel { Margin = new Thickness(13, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+            titles.Children.Add(new TextBlock { Text = L("PERFORMANCE OVERLAY"), Foreground = Brush(Accent), FontSize = 9, FontWeight = FontWeights.Bold });
+            titles.Children.Add(new TextBlock { Text = L("Settings"), FontSize = 23, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, -1, 0, 0) });
+            brand.Children.Add(titles); header.Children.Add(brand);
+            var statusCard = new Border { Background = new LinearGradientBrush(Surface, Surface2, 0), BorderBrush = Brush(WpfColor.FromRgb(41, 55, 70)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(11), Padding = new Thickness(11, 8, 9, 8), VerticalAlignment = VerticalAlignment.Center };
+            var status = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            var stateDot = new System.Windows.Shapes.Ellipse { Width = 7, Height = 7, Fill = Brush(_host.IsVisible ? WpfColor.FromRgb(86, 229, 160) : WpfColor.FromRgb(157, 169, 184)), Margin = new Thickness(0, 0, 7, 0), VerticalAlignment = VerticalAlignment.Center };
+            status.Children.Add(stateDot); _overlayState.Text = _host.IsVisible ? L("RUNNING") : L("HIDDEN"); _overlayState.FontSize = 9; _overlayState.FontWeight = FontWeights.Bold; _overlayState.Foreground = Brush(Muted); _overlayState.VerticalAlignment = VerticalAlignment.Center; status.Children.Add(_overlayState);
+            var toggle = Button(L(_host.IsVisible ? "Hide" : "Show"), Brush(WpfColor.FromArgb(35, Accent.R, Accent.G, Accent.B)), Brush(Accent), ToggleOverlay); toggle.Margin = new Thickness(11, 0, 0, 0); toggle.Padding = new Thickness(11, 6, 11, 6); status.Children.Add(toggle);
+            statusCard.Child = status; Grid.SetColumn(statusCard, 1); header.Children.Add(statusCard);
+            return header;
+        }
+
+        private static ItemsPanelTemplate BuildTabItemsPanel()
+        {
+            var panel = new FrameworkElementFactory(typeof(StackPanel)); panel.SetValue(StackPanel.OrientationProperty, System.Windows.Controls.Orientation.Horizontal);
+            return new ItemsPanelTemplate(panel);
+        }
+
+        private static ControlTemplate BuildTabControlTemplate()
+        {
+            var dock = new FrameworkElementFactory(typeof(DockPanel));
+            var items = new FrameworkElementFactory(typeof(ItemsPresenter)); items.SetValue(DockPanel.DockProperty, Dock.Top); dock.AppendChild(items);
+            var content = new FrameworkElementFactory(typeof(ContentPresenter)); content.SetValue(ContentPresenter.ContentSourceProperty, "SelectedContent"); content.SetValue(ContentPresenter.MarginProperty, new Thickness(0, 15, 0, 0)); dock.AppendChild(content);
+            return new ControlTemplate(typeof(System.Windows.Controls.TabControl)) { VisualTree = dock };
+        }
+
+        private static Style BuildTabItemStyle()
+        {
+            var style = new Style(typeof(TabItem));
+            style.Setters.Add(new Setter(WpfControl.ForegroundProperty, Brush(Muted))); style.Setters.Add(new Setter(WpfControl.BackgroundProperty, WpfBrushes.Transparent));
+            style.Setters.Add(new Setter(WpfControl.FontSizeProperty, 11.5)); style.Setters.Add(new Setter(WpfControl.FontWeightProperty, FontWeights.SemiBold));
+            style.Setters.Add(new Setter(WpfControl.BorderThicknessProperty, new Thickness(0))); style.Setters.Add(new Setter(WpfControl.PaddingProperty, new Thickness(14, 9, 14, 9)));
+            var border = new FrameworkElementFactory(typeof(Border), "TabBorder"); border.SetValue(Border.CornerRadiusProperty, new CornerRadius(8)); border.SetValue(Border.PaddingProperty, new TemplateBindingExtension(WpfControl.PaddingProperty)); border.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(WpfControl.BackgroundProperty));
+            var presenter = new FrameworkElementFactory(typeof(ContentPresenter)); presenter.SetValue(ContentPresenter.ContentSourceProperty, "Header"); presenter.SetValue(ContentPresenter.HorizontalAlignmentProperty, System.Windows.HorizontalAlignment.Center); presenter.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center); border.AppendChild(presenter);
+            var template = new ControlTemplate(typeof(TabItem)) { VisualTree = border };
+            var selected = new Trigger { Property = TabItem.IsSelectedProperty, Value = true };
+            selected.Setters.Add(new Setter(WpfControl.BackgroundProperty, Brush(WpfColor.FromRgb(24, 39, 51)))); selected.Setters.Add(new Setter(WpfControl.ForegroundProperty, Brush(Accent)));
+            var hover = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true }; hover.Setters.Add(new Setter(WpfControl.BackgroundProperty, Brush(WpfColor.FromRgb(20, 31, 42))));
+            template.Triggers.Add(selected); template.Triggers.Add(hover); style.Setters.Add(new Setter(WpfControl.TemplateProperty, template)); return style;
         }
 
         private void AddTab(string key, string title, UIElement page)
         {
-            var scroll = new ScrollViewer { Content = page, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+            var scroll = new ScrollViewer { Content = page, Width = Math.Max(480, Width - 82), HorizontalAlignment = System.Windows.HorizontalAlignment.Left, HorizontalContentAlignment = System.Windows.HorizontalAlignment.Stretch, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+            _pageScrollers.Add(scroll);
+            void FitPageToViewport()
+            {
+                if (page is FrameworkElement element && scroll.ActualWidth > 0)
+                    element.Width = scroll.ActualWidth;
+            }
+            scroll.SizeChanged += (_, _) => FitPageToViewport();
+            scroll.Loaded += (_, _) => FitPageToViewport();
             _pages!.Items.Add(new TabItem { Header = L(title), Content = scroll, Tag = key, Padding = new Thickness(14, 8, 14, 8) });
+        }
+
+        private void FitTabPages()
+        {
+            foreach (var scroll in _pageScrollers)
+                scroll.Width = Math.Max(480, ActualWidth - 82);
         }
 
         private UIElement BuildGeneralPage()
         {
-            var page = new StackPanel(); page.Children.Add(SectionTitle(L("General"), L("Language and quick actions")));
-            page.Children.Add(MakeSettingCard(L("Language"), L("Choose the language used by menus"), BuildLanguagePicker()));
-            page.Children.Add(SectionTitle(L("Quick actions"), L("Actions available from the tray menu")));
+            var page = new StackPanel(); page.Children.Add(SectionTitle(L("General"), L("Language, status and quick actions.")));
+            var columns = new Grid(); columns.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(.82, GridUnitType.Star) }); columns.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.18, GridUnitType.Star) });
+            var left = new StackPanel { Margin = new Thickness(0, 0, 10, 0) }; var right = new StackPanel { Margin = new Thickness(10, 0, 0, 0) };
+            Grid.SetColumn(left, 0); Grid.SetColumn(right, 1); columns.Children.Add(left); columns.Children.Add(right);
+            left.Children.Add(MakeSettingCard(L("Language"), L("Choose the language used by menus"), BuildLanguagePicker()));
+            var note = Card(); var noteBody = new StackPanel(); noteBody.Children.Add(CardEyebrow(L("YOUR SETUP"))); noteBody.Children.Add(new TextBlock { Text = L("Preferences save as you go"), FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 3, 0, 4) }); noteBody.Children.Add(new TextBlock { Text = L("Your language, appearance and metric choices are stored for your Windows account."), Foreground = Brush(Muted), FontSize = 11, TextWrapping = TextWrapping.Wrap }); note.Child = noteBody; left.Children.Add(note);
+            right.Children.Add(SectionTitle(L("Quick actions"), L("Everything from the tray menu, right here.")));
             var actions = Card(); var stack = new StackPanel();
             stack.Children.Add(ActionRow(L("Reload everything"), L("Restart sensor and plugin data"), async () => await _host.ReloadAllAsync()));
             stack.Children.Add(ActionRow(L("Configure hotkeys"), L("Set reset, reload and exit shortcuts"), () => Navigate("shortcuts")));
             stack.Children.Add(ActionRow(L("Help and indicator guide"), L("What the overlay values mean"), () => Navigate("help")));
             stack.Children.Add(ActionRow(L("Discover plugins"), L("Browse available extensions"), OpenPluginCatalog));
             stack.Children.Add(ActionRow(L("Open plugins folder"), L("Manage installed plugin files"), () => _host.OpenPluginFolder()));
-            stack.Children.Add(ActionRow(L("Exit overlay"), L("Close the overlay"), () => _host.StopOverlayAnimation(), danger: true)); actions.Child = stack; page.Children.Add(actions); return page;
+            stack.Children.Add(ActionRow(L("Exit overlay"), L("Close the overlay"), () => _host.StopOverlayAnimation(), danger: true)); actions.Child = stack; right.Children.Add(actions);
+            page.Children.Add(columns); return page;
         }
 
         private UIElement BuildCustomizationPage()
         {
-            var page = new StackPanel(); page.Children.Add(SectionTitle(L("Overlay appearance"), L("Customize size, color, placement and displayed metrics")));
+            var page = new StackPanel();
+            page.Children.Add(SectionTitle(L("Make it yours"), L("Tune the look, position and information in your overlay.")));
+            var columns = new Grid(); columns.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); columns.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.08, GridUnitType.Star) });
+            var left = new StackPanel { Margin = new Thickness(0, 0, 10, 0) }; var right = new StackPanel { Margin = new Thickness(10, 0, 0, 0) };
+            Grid.SetColumn(left, 0); Grid.SetColumn(right, 1); columns.Children.Add(left); columns.Children.Add(right);
+
             var appearance = Card(); var body = new StackPanel();
-            body.Children.Add(new TextBlock { Text = L("Accent color"), FontWeight = FontWeights.SemiBold });
-            var colorRow = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, Margin = new Thickness(0, 7, 0, 12) };
-            var swatch = new Border { Width = 28, Height = 28, Background = new SolidColorBrush(_host._accentColor), CornerRadius = new CornerRadius(5), Margin = new Thickness(0, 0, 10, 0) };
-            colorRow.Children.Add(swatch); colorRow.Children.Add(Button(L("Choose color…"), Brush(Surface2), WpfBrushes.White, () => { using var dialog = new Forms.ColorDialog { Color = System.Drawing.Color.FromArgb(_host._accentColor.R, _host._accentColor.G, _host._accentColor.B), FullOpen = true }; if (dialog.ShowDialog() == Forms.DialogResult.OK) { var c = WpfColor.FromRgb(dialog.Color.R, dialog.Color.G, dialog.Color.B); _host.SetAccentColor(c); swatch.Background = new SolidColorBrush(c); } })); body.Children.Add(colorRow);
+            body.Children.Add(CardEyebrow(L("APPEARANCE")));
+            body.Children.Add(new TextBlock { Text = L("Accent color"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 8, 0, 0) });
+            var colorRow = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 12) };
+            var swatch = new Border { Width = 30, Height = 30, Background = new SolidColorBrush(_host._accentColor), CornerRadius = new CornerRadius(8), BorderBrush = Brush(WpfColor.FromArgb(80, 255, 255, 255)), BorderThickness = new Thickness(1), Margin = new Thickness(0, 0, 10, 0) };
+            colorRow.Children.Add(swatch); colorRow.Children.Add(Button(L("Choose color…"), Brush(WpfColor.FromRgb(28, 39, 51)), WpfBrushes.White, () => { using var dialog = new Forms.ColorDialog { Color = System.Drawing.Color.FromArgb(_host._accentColor.R, _host._accentColor.G, _host._accentColor.B), FullOpen = true }; if (dialog.ShowDialog() == Forms.DialogResult.OK) { var c = WpfColor.FromRgb(dialog.Color.R, dialog.Color.G, dialog.Color.B); _host.SetAccentColor(c); swatch.Background = new SolidColorBrush(c); } })); body.Children.Add(colorRow);
             body.Children.Add(SliderRow(L("Overlay size"), .65, 2.2, _host._overlayScale, v => _host.SetOverlayScale(v), "0.00×"));
             body.Children.Add(SliderRow(L("Hover transparency"), 0, 100, _host._hoverTransparency, v => _host.SetHoverTransparency(v), "0%"));
             body.Children.Add(SliderRow(L("Hover distance"), 0, 500, _host._hoverRadius, v => _host.SetHoverRadius(v), "0 px"));
-            body.Children.Add(new TextBlock { Text = L("Monitor"), Margin = new Thickness(0, 12, 0, 4), FontWeight = FontWeights.SemiBold });
-            var screens = Forms.Screen.AllScreens; var monitor = new WpfComboBox { Height = 34, ItemsSource = screens.Select((x, i) => new MonitorChoice(x.DeviceName, $"{(x.Primary ? L("Primary") : L("Screen"))} {i + 1} ({x.Bounds.Width}×{x.Bounds.Height})")).ToList(), DisplayMemberPath = nameof(MonitorChoice.Label), SelectedValuePath = nameof(MonitorChoice.Device), SelectedValue = screens.FirstOrDefault(x => x.DeviceName.Equals(_host._selectedMonitor, StringComparison.OrdinalIgnoreCase))?.DeviceName ?? Forms.Screen.PrimaryScreen?.DeviceName };
-            monitor.SelectionChanged += (_, _) => { if (monitor.SelectedValue is string device) _host.SetSelectedMonitor(device); }; body.Children.Add(monitor);
-            body.Children.Add(new TextBlock { Text = L("Screen position"), Margin = new Thickness(0, 12, 0, 4), FontWeight = FontWeights.SemiBold }); body.Children.Add(BuildPositionPicker());
-            body.Children.Add(new TextBlock { Text = L("Hover fading only changes visibility; the overlay remains click-through."), Foreground = Brush(Muted), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0) }); appearance.Child = body; page.Children.Add(appearance);
-            page.Children.Add(SectionTitle(L("Displayed metrics"), L("Choose values and change their order")));
-            var metricsCard = Card(); var metrics = new StackPanel();
-            foreach (var key in CoreMetricOrder) { var row = new Grid { Margin = new Thickness(0, 4, 0, 4) }; row.ColumnDefinitions.Add(new ColumnDefinition()); row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); var check = new WpfCheckBox { Content = key, IsChecked = _host._enabledMetrics.Contains(key), VerticalAlignment = VerticalAlignment.Center }; check.Checked += (_, _) => _host.SetMetricEnabled(key, true); check.Unchecked += (_, _) => _host.SetMetricEnabled(key, false); row.Children.Add(check); var buttons = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal }; buttons.Children.Add(Button("↑", Brush(Surface2), WpfBrushes.White, () => { _host.MoveMetric(key, -1); RefreshMetricOrder(metrics); })); buttons.Children.Add(Button("↓", Brush(Surface2), WpfBrushes.White, () => { _host.MoveMetric(key, 1); RefreshMetricOrder(metrics); })); Grid.SetColumn(buttons, 1); row.Children.Add(buttons); row.Tag = key; _metricRows[key] = row; metrics.Children.Add(row); }
-            metricsCard.Child = metrics; page.Children.Add(metricsCard); return page;
+            appearance.Child = body; left.Children.Add(appearance);
+
+            var placement = Card(); var placementBody = new StackPanel(); placementBody.Children.Add(CardEyebrow(L("PLACEMENT")));
+            placementBody.Children.Add(new TextBlock { Text = L("Monitor"), Margin = new Thickness(0, 9, 0, 5), FontWeight = FontWeights.SemiBold });
+            var screens = Forms.Screen.AllScreens; var monitor = CreateModernComboBox(); monitor.ItemsSource = screens.Select((x, i) => new MonitorChoice(x.DeviceName, $"{(x.Primary ? L("Primary") : L("Screen"))} {i + 1}  ·  {x.Bounds.Width} × {x.Bounds.Height}")).ToList(); monitor.ItemTemplate = TextDataTemplate(typeof(MonitorChoice), nameof(MonitorChoice.Label)); monitor.SelectedValuePath = nameof(MonitorChoice.Device); monitor.SelectedValue = screens.FirstOrDefault(x => x.DeviceName.Equals(_host._selectedMonitor, StringComparison.OrdinalIgnoreCase))?.DeviceName ?? Forms.Screen.PrimaryScreen?.DeviceName;
+            monitor.SelectionChanged += (_, _) => { if (monitor.SelectedValue is string device) _host.SetSelectedMonitor(device); }; placementBody.Children.Add(monitor);
+            placementBody.Children.Add(new TextBlock { Text = L("Screen position"), Margin = new Thickness(0, 13, 0, 5), FontWeight = FontWeights.SemiBold }); placementBody.Children.Add(BuildPositionPicker());
+            placementBody.Children.Add(new TextBlock { Text = L("Hover fading only changes visibility; the overlay remains click-through."), Foreground = Brush(Muted), TextWrapping = TextWrapping.Wrap, FontSize = 10, Margin = new Thickness(0, 12, 0, 0) }); placement.Child = placementBody; left.Children.Add(placement);
+
+            var metricsCard = Card(); var metrics = new StackPanel(); metrics.Children.Add(CardEyebrow(L("METRICS"))); metrics.Children.Add(new TextBlock { Text = L("Displayed values"), FontSize = 17, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 5, 0, 3) }); metrics.Children.Add(new TextBlock { Text = L("Choose what appears, then move each value into place."), Foreground = Brush(Muted), FontSize = 10, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 13) });
+            var metricRows = new StackPanel(); metrics.Children.Add(metricRows);
+            foreach (var key in CoreMetricOrder)
+            {
+                var row = new Grid { Margin = new Thickness(0, 3, 0, 3), MinHeight = 38 }; row.ColumnDefinitions.Add(new ColumnDefinition()); row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                var check = new WpfCheckBox { Content = key, IsChecked = _host._enabledMetrics.Contains(key), VerticalAlignment = VerticalAlignment.Center, FontWeight = FontWeights.Medium, Foreground = WpfBrushes.White, Style = BuildCheckBoxStyle() }; check.Checked += (_, _) => _host.SetMetricEnabled(key, true); check.Unchecked += (_, _) => _host.SetMetricEnabled(key, false); row.Children.Add(check);
+                var buttons = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal }; buttons.Children.Add(Button("↑", Brush(WpfColor.FromRgb(22, 31, 42)), Brush(Muted), () => { _host.MoveMetric(key, -1); RefreshMetricOrder(metricRows); })); buttons.Children.Add(Button("↓", Brush(WpfColor.FromRgb(22, 31, 42)), Brush(Muted), () => { _host.MoveMetric(key, 1); RefreshMetricOrder(metricRows); })); Grid.SetColumn(buttons, 1); row.Children.Add(buttons); row.Tag = key; _metricRows[key] = row; metricRows.Children.Add(row);
+            }
+            RefreshMetricOrder(metricRows);
+            metricsCard.Child = metrics; right.Children.Add(metricsCard);
+            var hint = new Border { Background = Brush(WpfColor.FromArgb(16, Accent.R, Accent.G, Accent.B)), BorderBrush = Brush(WpfColor.FromArgb(42, Accent.R, Accent.G, Accent.B)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(13), Margin = new Thickness(0, 2, 0, 10) };
+            hint.Child = new TextBlock { Text = L("Changes apply instantly and are saved automatically."), Foreground = Brush(WpfColor.FromRgb(173, 194, 207)), FontSize = 10, TextWrapping = TextWrapping.Wrap }; right.Children.Add(hint);
+            page.Children.Add(columns); return page;
         }
 
+        private static TextBlock CardEyebrow(string text) => new() { Text = text, Foreground = Brush(Accent), FontSize = 9, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 5) };
+
         private sealed record MonitorChoice(string Device, string Label);
+        private WpfComboBox CreateModernComboBox() => new()
+        {
+            Height = 40, Padding = new Thickness(12, 6, 40, 6), Background = Brush(WpfColor.FromRgb(12, 17, 24)),
+            Foreground = WpfBrushes.White, BorderBrush = Brush(WpfColor.FromRgb(44, 60, 76)), BorderThickness = new Thickness(1),
+            FontSize = 12, VerticalContentAlignment = VerticalAlignment.Center, Cursor = System.Windows.Input.Cursors.Hand,
+            Style = BuildComboBoxStyle(), ItemContainerStyle = BuildComboBoxItemStyle()
+        };
+
+        private static Style BuildComboBoxStyle()
+        {
+            var style = new Style(typeof(WpfComboBox));
+            style.Setters.Add(new Setter(WpfControl.FocusVisualStyleProperty, null));
+            var root = new FrameworkElementFactory(typeof(Grid));
+            var frame = new FrameworkElementFactory(typeof(Border), "ComboFrame");
+            frame.SetValue(Border.CornerRadiusProperty, new CornerRadius(9));
+            frame.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(WpfComboBox.BackgroundProperty));
+            frame.SetValue(Border.BorderBrushProperty, new TemplateBindingExtension(WpfComboBox.BorderBrushProperty));
+            frame.SetValue(Border.BorderThicknessProperty, new TemplateBindingExtension(WpfComboBox.BorderThicknessProperty));
+            root.AppendChild(frame);
+
+            var selected = new FrameworkElementFactory(typeof(ContentPresenter));
+            selected.SetValue(FrameworkElement.NameProperty, "SelectionPresenter");
+            selected.SetValue(ContentPresenter.ContentProperty, new TemplateBindingExtension(WpfComboBox.SelectionBoxItemProperty));
+            selected.SetValue(ContentPresenter.ContentTemplateProperty, new TemplateBindingExtension(WpfComboBox.SelectionBoxItemTemplateProperty));
+            selected.SetValue(ContentPresenter.ContentStringFormatProperty, new TemplateBindingExtension(WpfComboBox.SelectionBoxItemStringFormatProperty));
+            selected.SetValue(ContentPresenter.MarginProperty, new Thickness(12, 0, 36, 0));
+            selected.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
+            selected.SetValue(ContentPresenter.HorizontalAlignmentProperty, System.Windows.HorizontalAlignment.Left);
+            selected.SetValue(UIElement.IsHitTestVisibleProperty, false); root.AppendChild(selected);
+
+            var toggle = new FrameworkElementFactory(typeof(ToggleButton), "DropDownToggle");
+            toggle.SetValue(ToggleButton.FocusableProperty, false); toggle.SetValue(ToggleButton.ClickModeProperty, ClickMode.Press);
+            toggle.SetValue(FrameworkElement.WidthProperty, 34.0); toggle.SetValue(FrameworkElement.HorizontalAlignmentProperty, System.Windows.HorizontalAlignment.Right);
+            toggle.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Stretch); toggle.SetBinding(ToggleButton.IsCheckedProperty, new WpfBinding("IsDropDownOpen") { RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent) });
+            var toggleBorder = new FrameworkElementFactory(typeof(Border)); toggleBorder.SetValue(Border.CornerRadiusProperty, new CornerRadius(0, 8, 8, 0)); toggleBorder.SetValue(Border.BackgroundProperty, Brush(WpfColor.FromRgb(17, 25, 34)));
+            var arrow = new FrameworkElementFactory(typeof(System.Windows.Shapes.Path), "DropDownArrow"); arrow.SetValue(System.Windows.Shapes.Path.DataProperty, Geometry.Parse("M 1 2 L 5 6 L 9 2")); arrow.SetValue(System.Windows.Shapes.Path.StrokeProperty, Brush(Accent)); arrow.SetValue(System.Windows.Shapes.Path.StrokeThicknessProperty, 1.7); arrow.SetValue(System.Windows.Shapes.Path.StrokeStartLineCapProperty, PenLineCap.Round); arrow.SetValue(System.Windows.Shapes.Path.StrokeEndLineCapProperty, PenLineCap.Round); arrow.SetValue(FrameworkElement.WidthProperty, 10.0); arrow.SetValue(FrameworkElement.HeightProperty, 7.0); arrow.SetValue(FrameworkElement.HorizontalAlignmentProperty, System.Windows.HorizontalAlignment.Center); arrow.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center); toggleBorder.AppendChild(arrow);
+            var toggleTemplate = new ControlTemplate(typeof(ToggleButton)) { VisualTree = toggleBorder }; toggle.SetValue(WpfControl.TemplateProperty, toggleTemplate); root.AppendChild(toggle);
+
+            var popup = new FrameworkElementFactory(typeof(Popup), "DropDownPopup");
+            popup.SetValue(Popup.PlacementProperty, PlacementMode.Bottom); popup.SetValue(Popup.StaysOpenProperty, false); popup.SetValue(Popup.AllowsTransparencyProperty, true); popup.SetValue(Popup.PopupAnimationProperty, PopupAnimation.Fade); popup.SetValue(Popup.VerticalOffsetProperty, 6.0);
+            popup.SetBinding(Popup.IsOpenProperty, new WpfBinding("IsDropDownOpen") { RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent) }); popup.SetBinding(Popup.PlacementTargetProperty, new WpfBinding { RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent) });
+            var popupFrame = new FrameworkElementFactory(typeof(Border)); popupFrame.SetValue(Border.BackgroundProperty, Brush(WpfColor.FromRgb(15, 21, 29))); popupFrame.SetValue(Border.BorderBrushProperty, Brush(WpfColor.FromRgb(46, 64, 81))); popupFrame.SetValue(Border.BorderThicknessProperty, new Thickness(1)); popupFrame.SetValue(Border.CornerRadiusProperty, new CornerRadius(11)); popupFrame.SetValue(Border.PaddingProperty, new Thickness(5)); popupFrame.SetValue(Border.EffectProperty, new System.Windows.Media.Effects.DropShadowEffect { Color = Colors.Black, BlurRadius = 22, ShadowDepth = 7, Opacity = .52 });
+            var scroll = new FrameworkElementFactory(typeof(ScrollViewer)); scroll.SetValue(ScrollViewer.CanContentScrollProperty, true); scroll.SetValue(ScrollViewer.VerticalScrollBarVisibilityProperty, ScrollBarVisibility.Auto); scroll.SetValue(FrameworkElement.MaxHeightProperty, 260.0);
+            scroll.AppendChild(new FrameworkElementFactory(typeof(ItemsPresenter))); popupFrame.AppendChild(scroll); popup.AppendChild(popupFrame); root.AppendChild(popup);
+
+            var template = new ControlTemplate(typeof(WpfComboBox)) { VisualTree = root };
+            var hover = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true }; hover.Setters.Add(new Setter(Border.BorderBrushProperty, Brush(WpfColor.FromArgb(145, Accent.R, Accent.G, Accent.B)), "ComboFrame"));
+            var focus = new Trigger { Property = WpfControl.IsKeyboardFocusWithinProperty, Value = true }; focus.Setters.Add(new Setter(Border.BorderBrushProperty, Brush(Accent), "ComboFrame"));
+            template.Triggers.Add(hover); template.Triggers.Add(focus); style.Setters.Add(new Setter(WpfControl.TemplateProperty, template)); return style;
+        }
+
+        private static Style BuildComboBoxItemStyle()
+        {
+            var style = new Style(typeof(ComboBoxItem));
+            style.Setters.Add(new Setter(WpfControl.ForegroundProperty, Brush(WpfColor.FromRgb(220, 229, 237)))); style.Setters.Add(new Setter(WpfControl.BackgroundProperty, WpfBrushes.Transparent));
+            style.Setters.Add(new Setter(WpfControl.PaddingProperty, new Thickness(10, 8, 10, 8))); style.Setters.Add(new Setter(WpfControl.FontSizeProperty, 12.0));
+            var border = new FrameworkElementFactory(typeof(Border), "ItemFrame"); border.SetValue(Border.CornerRadiusProperty, new CornerRadius(7)); border.SetValue(Border.PaddingProperty, new TemplateBindingExtension(WpfControl.PaddingProperty)); border.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(WpfControl.BackgroundProperty));
+            var content = new FrameworkElementFactory(typeof(ContentPresenter)); content.SetValue(ContentPresenter.ContentSourceProperty, "Content"); content.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center); border.AppendChild(content);
+            var template = new ControlTemplate(typeof(ComboBoxItem)) { VisualTree = border };
+            var highlighted = new Trigger { Property = ComboBoxItem.IsHighlightedProperty, Value = true }; highlighted.Setters.Add(new Setter(WpfControl.BackgroundProperty, Brush(WpfColor.FromRgb(23, 48, 59)))); highlighted.Setters.Add(new Setter(WpfControl.ForegroundProperty, Brush(Accent)));
+            var selected = new Trigger { Property = ComboBoxItem.IsSelectedProperty, Value = true }; selected.Setters.Add(new Setter(WpfControl.BackgroundProperty, Brush(WpfColor.FromRgb(20, 40, 50)))); selected.Setters.Add(new Setter(WpfControl.ForegroundProperty, Brush(Accent)));
+            template.Triggers.Add(highlighted); template.Triggers.Add(selected); style.Setters.Add(new Setter(WpfControl.TemplateProperty, template)); return style;
+        }
+
+        private static Style BuildCheckBoxStyle()
+        {
+            var style = new Style(typeof(WpfCheckBox)); style.Setters.Add(new Setter(WpfControl.FocusVisualStyleProperty, null));
+            var row = new FrameworkElementFactory(typeof(StackPanel)); row.SetValue(StackPanel.OrientationProperty, System.Windows.Controls.Orientation.Horizontal); row.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+            var frame = new FrameworkElementFactory(typeof(Border), "CheckFrame"); frame.SetValue(FrameworkElement.WidthProperty, 16.0); frame.SetValue(FrameworkElement.HeightProperty, 16.0); frame.SetValue(Border.CornerRadiusProperty, new CornerRadius(5)); frame.SetValue(Border.BackgroundProperty, Brush(WpfColor.FromRgb(11, 16, 23))); frame.SetValue(Border.BorderBrushProperty, Brush(WpfColor.FromRgb(58, 75, 91))); frame.SetValue(Border.BorderThicknessProperty, new Thickness(1)); frame.SetValue(FrameworkElement.MarginProperty, new Thickness(0, 0, 9, 0)); frame.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+            var mark = new FrameworkElementFactory(typeof(System.Windows.Shapes.Path), "CheckMark"); mark.SetValue(System.Windows.Shapes.Path.DataProperty, Geometry.Parse("M 2 8 L 6.5 12 L 14 3")); mark.SetValue(System.Windows.Shapes.Path.StrokeProperty, Brush(WpfColor.FromRgb(7, 16, 20))); mark.SetValue(System.Windows.Shapes.Path.StrokeThicknessProperty, 2.0); mark.SetValue(System.Windows.Shapes.Path.StrokeStartLineCapProperty, PenLineCap.Round); mark.SetValue(System.Windows.Shapes.Path.StrokeEndLineCapProperty, PenLineCap.Round); mark.SetValue(FrameworkElement.WidthProperty, 16.0); mark.SetValue(FrameworkElement.HeightProperty, 16.0); mark.SetValue(UIElement.OpacityProperty, 0.0); frame.AppendChild(mark); row.AppendChild(frame);
+            var content = new FrameworkElementFactory(typeof(ContentPresenter)); content.SetValue(ContentPresenter.ContentSourceProperty, "Content"); content.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center); row.AppendChild(content);
+            var template = new ControlTemplate(typeof(WpfCheckBox)) { VisualTree = row };
+            var selected = new Trigger { Property = ToggleButton.IsCheckedProperty, Value = true }; selected.Setters.Add(new Setter(Border.BackgroundProperty, Brush(Accent), "CheckFrame")); selected.Setters.Add(new Setter(Border.BorderBrushProperty, Brush(Accent), "CheckFrame")); selected.Setters.Add(new Setter(UIElement.OpacityProperty, 1.0, "CheckMark"));
+            var hover = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true }; hover.Setters.Add(new Setter(Border.BorderBrushProperty, Brush(WpfColor.FromArgb(170, Accent.R, Accent.G, Accent.B)), "CheckFrame"));
+            template.Triggers.Add(selected); template.Triggers.Add(hover); style.Setters.Add(new Setter(WpfControl.TemplateProperty, template)); return style;
+        }
+
+        private static Style BuildTextBoxStyle()
+        {
+            var style = new Style(typeof(System.Windows.Controls.TextBox)); style.Setters.Add(new Setter(WpfControl.FocusVisualStyleProperty, null));
+            var frame = new FrameworkElementFactory(typeof(Border), "InputFrame"); frame.SetValue(Border.CornerRadiusProperty, new CornerRadius(9)); frame.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(WpfControl.BackgroundProperty)); frame.SetValue(Border.BorderBrushProperty, new TemplateBindingExtension(WpfControl.BorderBrushProperty)); frame.SetValue(Border.BorderThicknessProperty, new TemplateBindingExtension(WpfControl.BorderThicknessProperty));
+            var host = new FrameworkElementFactory(typeof(ScrollViewer), "PART_ContentHost"); host.SetValue(FrameworkElement.MarginProperty, new Thickness(3, 0, 3, 0)); frame.AppendChild(host);
+            var template = new ControlTemplate(typeof(System.Windows.Controls.TextBox)) { VisualTree = frame };
+            var focus = new Trigger { Property = WpfControl.IsKeyboardFocusWithinProperty, Value = true }; focus.Setters.Add(new Setter(Border.BorderBrushProperty, Brush(Accent), "InputFrame"));
+            template.Triggers.Add(focus); style.Setters.Add(new Setter(WpfControl.TemplateProperty, template)); return style;
+        }
+
         private UIElement SliderRow(string label, double min, double max, double value, Action<double> changed, string format)
         {
-            var panel = new StackPanel { Margin = new Thickness(0, 5, 0, 5) }; var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); grid.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center }); var valueText = new TextBlock { Text = string.Format(System.Globalization.CultureInfo.CurrentCulture, format, value), Foreground = Brush(Muted), VerticalAlignment = VerticalAlignment.Center }; Grid.SetColumn(valueText, 1); grid.Children.Add(valueText); panel.Children.Add(grid);
-            var slider = new Slider { Minimum = min, Maximum = max, Value = value, TickFrequency = max > 10 ? 1 : .05, Margin = new Thickness(0, 2, 0, 0) }; slider.ValueChanged += (_, _) => { valueText.Text = format.Contains("0.00") ? $"{slider.Value:0.00}×" : format.Contains("px") ? $"{slider.Value:0} px" : $"{slider.Value:0}%"; changed(slider.Value); }; panel.Children.Add(slider); return panel;
+            var panel = new StackPanel { Margin = new Thickness(0, 5, 0, 5) }; var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition()); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); grid.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center }); var valueText = new TextBlock { Text = FormatSliderValue(value, format), Foreground = Brush(Muted), VerticalAlignment = VerticalAlignment.Center }; Grid.SetColumn(valueText, 1); grid.Children.Add(valueText); panel.Children.Add(grid);
+            var visual = new Grid { Height = 26, Margin = new Thickness(0, 1, 0, 0), ClipToBounds = false };
+            var rail = new Border { Height = 3, Margin = new Thickness(8, 0, 8, 0), CornerRadius = new CornerRadius(2), Background = Brush(WpfColor.FromRgb(40, 54, 68)), VerticalAlignment = VerticalAlignment.Center };
+            var fill = new Border { Height = 3, Width = 0, Margin = new Thickness(8, 0, 0, 0), CornerRadius = new CornerRadius(2), Background = Brush(Accent), HorizontalAlignment = System.Windows.HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center };
+            var thumb = new Border { Width = 14, Height = 14, Margin = new Thickness(1, 0, 0, 0), CornerRadius = new CornerRadius(7), Background = Brush(Accent), BorderBrush = Brush(WpfColor.FromRgb(214, 251, 255)), BorderThickness = new Thickness(2), HorizontalAlignment = System.Windows.HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Accent, BlurRadius = 10, ShadowDepth = 0, Opacity = .36 } };
+            var slider = new Slider { Minimum = min, Maximum = max, Value = value, TickFrequency = max > 10 ? 1 : .05, Height = 26, Background = WpfBrushes.Transparent, Opacity = 0, Cursor = System.Windows.Input.Cursors.Hand, IsMoveToPointEnabled = true, Focusable = true };
+            void UpdateVisual()
+            {
+                double travel = Math.Max(0, visual.ActualWidth - 14);
+                double ratio = max <= min ? 0 : Math.Clamp((slider.Value - min) / (max - min), 0, 1);
+                double offset = travel * ratio;
+                thumb.Margin = new Thickness(1 + offset, 0, 0, 0);
+                fill.Width = Math.Max(0, 8 + offset);
+            }
+            slider.ValueChanged += (_, _) =>
+            {
+                valueText.Text = FormatSliderValue(slider.Value, format);
+                UpdateVisual(); changed(slider.Value);
+            };
+            visual.SizeChanged += (_, _) => UpdateVisual();
+            visual.Children.Add(rail); visual.Children.Add(fill); visual.Children.Add(thumb); visual.Children.Add(slider);
+            panel.Children.Add(visual); UpdateVisual(); return panel;
+        }
+
+        private static string FormatSliderValue(double value, string format) =>
+            format.Contains("0.00") ? $"{value:0.00}×" : format.Contains("px") ? $"{value:0} px" : $"{value:0}%";
+
+        private static DataTemplate TextDataTemplate(Type itemType, string property)
+        {
+            var text = new FrameworkElementFactory(typeof(TextBlock));
+            text.SetBinding(TextBlock.TextProperty, new WpfBinding(property));
+            text.SetValue(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center);
+            text.SetValue(TextBlock.ForegroundProperty, Brush(WpfColor.FromRgb(229, 237, 244)));
+            return new DataTemplate(itemType) { VisualTree = text };
         }
         private void RefreshMetricOrder(StackPanel panel)
         {
@@ -201,7 +413,13 @@ public partial class MainWindow
                 HorizontalContentAlignment = System.Windows.HorizontalAlignment.Center,
                 IsReadOnly = true,
                 Tag = id,
-                ToolTip = L("Click here, then press a key combination")
+                ToolTip = L("Click here, then press a key combination"),
+                Background = Brush(WpfColor.FromRgb(12, 17, 24)),
+                Foreground = Brush(WpfColor.FromRgb(240, 246, 251)),
+                BorderBrush = Brush(WpfColor.FromRgb(48, 64, 80)),
+                BorderThickness = new Thickness(1),
+                CaretBrush = Brush(Accent),
+                Style = BuildTextBoxStyle()
             };
             input.GotKeyboardFocus += (_, _) => input.SelectAll();
             input.PreviewKeyDown += (_, e) =>
@@ -340,21 +558,21 @@ public partial class MainWindow
         }
         private UIElement BuildColorPicker()
         {
-            var picker = new WpfComboBox { ItemsSource = new[] { "Turquoise", "Red", "Green", "Blue", "Orange", "Black", "White" }, SelectedItem = ColorName(_host._accentColor), Height = 36 };
+            var picker = CreateModernComboBox(); picker.ItemsSource = new[] { "Turquoise", "Red", "Green", "Blue", "Orange", "Black", "White" }; picker.SelectedItem = ColorName(_host._accentColor);
             picker.SelectionChanged += (_, _) => { if (picker.SelectedItem is string name) _host.SetAccentColor(ColorFromName(name)); };
             return picker;
         }
 
         private UIElement BuildLanguagePicker()
         {
-            var picker = new WpfComboBox { Height = 36, ItemsSource = new[]
+            var picker = CreateModernComboBox(); picker.ItemsSource = new[]
             {
                 new LanguageEntry("English", L("English")),
                 new LanguageEntry("German", L("German")),
                 new LanguageEntry("French", L("French")),
                 new LanguageEntry("Japanese", L("Japanese")),
                 new LanguageEntry("Chinese", L("Chinese"))
-            }, DisplayMemberPath = nameof(LanguageEntry.Label), SelectedValuePath = nameof(LanguageEntry.Value), SelectedValue = _host._uiLanguage };
+            }; picker.ItemTemplate = TextDataTemplate(typeof(LanguageEntry), nameof(LanguageEntry.Label)); picker.SelectedValuePath = nameof(LanguageEntry.Value); picker.SelectedValue = _host._uiLanguage;
             picker.SelectionChanged += (_, _) =>
             {
                 if (picker.SelectedValue is not string language || language == _host._uiLanguage) return;
@@ -367,12 +585,12 @@ public partial class MainWindow
 
         private UIElement BuildPositionPicker()
         {
-            var picker = new WpfComboBox { Height = 36, ItemsSource = new[]
+            var picker = CreateModernComboBox(); picker.ItemsSource = new[]
             {
                 new PositionEntry("Top Left", L("Top Left")),
                 new PositionEntry("Top Center", L("Top Center")),
                 new PositionEntry("Top Right", L("Top Right"))
-            }, DisplayMemberPath = nameof(PositionEntry.Label), SelectedValuePath = nameof(PositionEntry.Value), SelectedValue = _host._overlayPosition };
+            }; picker.ItemTemplate = TextDataTemplate(typeof(PositionEntry), nameof(PositionEntry.Label)); picker.SelectedValuePath = nameof(PositionEntry.Value); picker.SelectedValue = _host._overlayPosition;
             picker.SelectionChanged += (_, _) => { if (picker.SelectedValue is string value) _host.SetOverlayPosition(value); };
             return picker;
         }
@@ -397,7 +615,7 @@ public partial class MainWindow
             line.ColumnDefinitions.Add(new ColumnDefinition());
             line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             var details = new StackPanel();
-            var check = new WpfCheckBox { Content = plugin.Instance.Name, ToolTip = plugin.Instance.Description, Foreground = WpfBrushes.White, IsChecked = _host._pluginContainers.TryGetValue(plugin, out var view) && view.Visibility == Visibility.Visible };
+            var check = new WpfCheckBox { Content = plugin.Instance.Name, ToolTip = plugin.Instance.Description, Foreground = WpfBrushes.White, IsChecked = _host._pluginContainers.TryGetValue(plugin, out var view) && view.Visibility == Visibility.Visible, Style = BuildCheckBoxStyle() };
             check.Checked += (_, _) => SetPluginVisibility(plugin, true); check.Unchecked += (_, _) => SetPluginVisibility(plugin, false);
             details.Children.Add(check);
             if (!string.IsNullOrWhiteSpace(plugin.Instance.Description)) details.Children.Add(new TextBlock { Text = plugin.Instance.Description, Foreground = Brush(Muted), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(22, 2, 12, 0), FontSize = 11 });
@@ -430,11 +648,15 @@ public partial class MainWindow
             stack.Children.Add(new TextBlock { Text = subtitle, Foreground = Brush(Muted), FontSize = 11, Margin = new Thickness(0, 2, 0, 10) });
             stack.Children.Add(control); var card = Card(); card.Child = stack; card.Margin = new Thickness(0, 0, 0, 10); return card;
         }
-        private static Border Card() => new() { Background = Brush(Surface), BorderBrush = Brush(WpfColor.FromRgb(41, 51, 69)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), Padding = new Thickness(16), Margin = new Thickness(0, 0, 0, 10) };
-        private static TextBlock SectionTitle(string title, string subtitle)
+        private static Border Card() => new() { Background = new LinearGradientBrush(Surface, WpfColor.FromRgb(13, 19, 27), 120), BorderBrush = Brush(WpfColor.FromArgb(30, 190, 210, 230)), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(14), Padding = new Thickness(18), Margin = new Thickness(0, 0, 0, 12), Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Colors.Black, BlurRadius = 18, ShadowDepth = 4, Opacity = .2 } };
+        private static UIElement SectionTitle(string title, string subtitle)
         {
-            var block = new TextBlock { Text = title + "\n" + subtitle, FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = WpfBrushes.White, Margin = new Thickness(1, 0, 0, 10) };
-            return block;
+            var section = new StackPanel { Margin = new Thickness(2, 3, 0, 15) };
+            var eyebrow = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            eyebrow.Children.Add(new Border { Width = 17, Height = 1, Background = Brush(Accent), Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center });
+            eyebrow.Children.Add(new TextBlock { Text = title.ToUpperInvariant(), FontSize = 9, FontWeight = FontWeights.Bold, Foreground = Brush(Accent) }); section.Children.Add(eyebrow);
+            section.Children.Add(new TextBlock { Text = subtitle, FontSize = 18, FontWeight = FontWeights.SemiBold, Foreground = WpfBrushes.White, Margin = new Thickness(0, 5, 0, 0), TextWrapping = TextWrapping.Wrap });
+            return section;
         }
         private UIElement ActionRow(string title, string description, Action action, bool danger = false)
         {
@@ -449,8 +671,33 @@ public partial class MainWindow
         private static WpfButton Button(string label, WpfColor background, WpfColor foreground, Action action) => Button(label, Brush(background), Brush(foreground), action);
         private static WpfButton Button(string label, WpfBrush background, WpfBrush foreground, Action action)
         {
-            var button = new WpfButton { Content = label, Background = background, Foreground = foreground, BorderThickness = new Thickness(0), Padding = new Thickness(12, 8, 12, 8), Margin = new Thickness(0, 0, 7, 0), Cursor = System.Windows.Input.Cursors.Hand, FontSize = 11 };
+            var button = new WpfButton { Content = label, Background = background, Foreground = foreground, BorderBrush = Brush(WpfColor.FromArgb(48, Accent.R, Accent.G, Accent.B)), BorderThickness = new Thickness(1), Padding = new Thickness(12, 8, 12, 8), Margin = new Thickness(0, 0, 7, 0), Cursor = System.Windows.Input.Cursors.Hand, FontSize = 11, Style = BuildButtonStyle() };
             button.Click += (_, _) => action(); return button;
+        }
+
+        private static Style BuildButtonStyle()
+        {
+            var style = new Style(typeof(WpfButton));
+            var border = new FrameworkElementFactory(typeof(Border), "ButtonBorder");
+            border.SetValue(Border.CornerRadiusProperty, new CornerRadius(8));
+            border.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(WpfButton.BackgroundProperty));
+            border.SetValue(Border.BorderBrushProperty, new TemplateBindingExtension(WpfButton.BorderBrushProperty));
+            border.SetValue(Border.BorderThicknessProperty, new TemplateBindingExtension(WpfButton.BorderThicknessProperty));
+            var content = new FrameworkElementFactory(typeof(ContentPresenter));
+            content.SetValue(ContentPresenter.ContentProperty, new TemplateBindingExtension(WpfButton.ContentProperty));
+            content.SetValue(ContentPresenter.ContentTemplateProperty, new TemplateBindingExtension(WpfButton.ContentTemplateProperty));
+            content.SetValue(ContentPresenter.HorizontalAlignmentProperty, new TemplateBindingExtension(WpfButton.HorizontalContentAlignmentProperty));
+            content.SetValue(ContentPresenter.VerticalAlignmentProperty, new TemplateBindingExtension(WpfButton.VerticalContentAlignmentProperty));
+            content.SetValue(ContentPresenter.MarginProperty, new TemplateBindingExtension(WpfButton.PaddingProperty)); border.AppendChild(content);
+            var template = new ControlTemplate(typeof(WpfButton)) { VisualTree = border };
+            var hover = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
+            hover.Setters.Add(new Setter(Border.BorderBrushProperty, Brush(WpfColor.FromArgb(130, Accent.R, Accent.G, Accent.B)), "ButtonBorder"));
+            var pressed = new Trigger { Property = WpfButton.IsPressedProperty, Value = true };
+            pressed.Setters.Add(new Setter(UIElement.OpacityProperty, .78));
+            var disabled = new Trigger { Property = UIElement.IsEnabledProperty, Value = false };
+            disabled.Setters.Add(new Setter(UIElement.OpacityProperty, .42));
+            template.Triggers.Add(hover); template.Triggers.Add(pressed); template.Triggers.Add(disabled);
+            style.Setters.Add(new Setter(WpfControl.TemplateProperty, template)); return style;
         }
         private static void NavButton(WpfPanel sidebar, string label, bool selected, Action action)
         {

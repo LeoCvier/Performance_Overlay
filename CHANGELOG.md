@@ -2,6 +2,11 @@
 
 This file records the published versions of PerformanceOverlay and the changes included in each release.
 
+## [1.3.1] - 2026-11-22
+
+- Redesign the settings window to match the website and overlay with a unified dark palette, accent highlights, responsive cards and clearer tabs.
+- Replace default selection controls with matching custom dropdowns and style sliders, checkboxes and shortcut fields.
+- Improve page width and value labels, and localize the updated settings in all five menu languages.
 ## [1.3.0] - 2026-11-22
 
 - Move all Customizable Overlay controls into the core settings window, including accent color, scale, hover fade and distance, monitor selection, metric visibility and ordering.
