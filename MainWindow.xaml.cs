@@ -33,6 +33,10 @@ public partial class MainWindow : Window
     private const uint ModWin = 0x0008;
     private const int WmHotkey = 0x0312;
     private const string PluginCatalogUrl = "https://github.com/LeoCvier/Performance-Overlay-Plugins";
+    private string LegacyCustomizationPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PerformanceOverlay", "customizable-overlay.json");
+    private static readonly string[] CoreMetricOrder = ["FPS AVG", "FPS MAX", "FPS MIN", "CPU", "CPU TEMP", "RAM", "GPU", "GPU TEMP"];
+    private static readonly string[] MetricElementNames = ["FpsAvg", "FpsMax", "FpsMin", "CpuLoad", "CpuTemp", "RamLoad", "GpuLoad", "GpuTemp"];
+    private static readonly string[] SeparatorElementNames = ["Sep1", "Sep2", "Sep3", "Sep4", "Sep5", "Sep6", "Sep7"];
 
     private sealed class HotkeyBinding
     {
@@ -54,6 +58,12 @@ public partial class MainWindow : Window
     private string PluginDirectory => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PerformanceOverlay", "Plugins");
     private string _overlayPosition = "Top Left";
     private string _uiLanguage = "English";
+    private double _overlayScale = 1.0;
+    private double _hoverTransparency = 65;
+    private double _hoverRadius = 56;
+    private string _selectedMonitor = "";
+    private readonly List<string> _metricOrder = CoreMetricOrder.ToList();
+    private readonly HashSet<string> _enabledMetrics = new(new[] { "FPS AVG", "FPS MAX", "FPS MIN", "CPU", "RAM", "GPU" }, StringComparer.OrdinalIgnoreCase);
     private Forms.ToolStripMenuItem? _pluginMenu;
     private readonly OverlayPluginManager _pluginManager = new();
     private readonly List<LoadedOverlayPlugin> _loadedPlugins = new();
@@ -123,6 +133,14 @@ public partial class MainWindow : Window
     {
         Interval = TimeSpan.FromMilliseconds(650)
     };
+    private readonly DispatcherTimer _hoverOpacityTimer = new() { Interval = TimeSpan.FromMilliseconds(40) };
+    private double _lastHoverOpacity = -1;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct CursorPoint { public int X; public int Y; }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool GetCursorPos(out CursorPoint point);
 
     public MainWindow()
     {
@@ -139,6 +157,7 @@ public partial class MainWindow : Window
         Closed += OnClosed;
 
         _timer.Tick += (_, _) => { UpdateHardware(); RefreshMetricVisibility(); };
+        _hoverOpacityTimer.Tick += (_, _) => UpdateHoverTransparency();
 
         _resetFlashTimer.Tick += (_, _) =>
         {
@@ -225,11 +244,12 @@ public partial class MainWindow : Window
                 };
             bool enabledByPlugins = _loadedPlugins.All(plugin =>
                 plugin.Instance is not IOverlayMetricVisibilityFilter filter || filter.IsMetricEnabled(metricKey));
+            bool enabledByCore = _enabledMetrics.Contains(metricKey);
             if (metric.Label.StartsWith("FPS ", StringComparison.Ordinal))
             {
                 metric.IsRevealed = showFpsValues || showFpsDashes;
                 metric.IsPending = false;
-                metric.Block.Visibility = metric.IsRevealed && enabledByPlugins ? Visibility.Visible : Visibility.Collapsed;
+                metric.Block.Visibility = metric.IsRevealed && enabledByPlugins && enabledByCore ? Visibility.Visible : Visibility.Collapsed;
                 continue;
             }
 
@@ -241,21 +261,16 @@ public partial class MainWindow : Window
             }
             else
             {
-                metric.Block.Visibility = metric.IsRevealed && enabledByPlugins ? Visibility.Visible : Visibility.Collapsed;
+                metric.Block.Visibility = metric.IsRevealed && enabledByPlugins && enabledByCore ? Visibility.Visible : Visibility.Collapsed;
             }
         }
 
-        AvailabilityDot.Visibility = _metrics.Values.Any(m => m.IsPending &&
+        AvailabilityDot.Visibility = _metrics.Values.Any(m => _enabledMetrics.Contains(m.Label) && m.IsPending &&
             m.LastSeenUtc != DateTime.MinValue && now - m.LastSeenUtc <= MetricTimeout)
             ? Visibility.Visible : Visibility.Collapsed;
 
         // Separators are shown only between two visible values.
-        var blocks = new[] { FpsAvg, FpsMax, FpsMin, CpuLoad, CpuTemp, RamLoad, GpuLoad, GpuTemp };
-        var separators = new[] { Sep1, Sep2, Sep3, Sep4, Sep5, Sep6, Sep7 };
-        for (int i = 0; i < separators.Length; i++)
-            separators[i].Visibility = blocks[i].Visibility == Visibility.Visible &&
-                blocks[i + 1].Visibility == Visibility.Visible
-                ? Visibility.Visible : Visibility.Collapsed;
+        UpdateOverlaySeparators();
     }
 
     private void RevealAvailableMetrics()
@@ -287,6 +302,9 @@ public partial class MainWindow : Window
         InitializeSystemTray();
         LoadInstalledPlugins();
         SetAccentColor(_accentColor);
+        ApplyOverlayScale();
+        ApplyMetricOrder();
+        _hoverOpacityTimer.Start();
 
         // Position is configurable from the system tray.
         Topmost = true;
@@ -387,6 +405,7 @@ public partial class MainWindow : Window
             Directory.CreateDirectory(PluginDirectory);
             foreach (var folder in Directory.GetDirectories(PluginDirectory))
             {
+                if (Path.GetFileName(folder).Contains("CustomizableOverlay", StringComparison.OrdinalIgnoreCase)) continue;
                 var assemblyPath = Path.Combine(folder, Path.GetFileName(folder) + ".dll");
                 if (!File.Exists(assemblyPath)) continue;
 
@@ -559,11 +578,23 @@ public partial class MainWindow : Window
         SaveSettings();
     }
 
+    private void SetOverlayScale(double value) { _overlayScale = Math.Clamp(value, .65, 2.2); ApplyOverlayScale(); SaveSettings(); }
+    private void SetHoverTransparency(double value) { _hoverTransparency = Math.Clamp(value, 0, 100); _lastHoverOpacity = -1; SaveSettings(); }
+    private void SetHoverRadius(double value) { _hoverRadius = Math.Clamp(value, 0, 500); SaveSettings(); }
+    private void SetSelectedMonitor(string device) { _selectedMonitor = device; ApplyOverlayPosition(); SaveSettings(); }
+    private void SetMetricEnabled(string metric, bool enabled) { if (enabled) _enabledMetrics.Add(metric); else _enabledMetrics.Remove(metric); RefreshMetricVisibility(); SaveSettings(); }
+    private void MoveMetric(string metric, int direction)
+    {
+        int index = _metricOrder.FindIndex(x => x.Equals(metric, StringComparison.OrdinalIgnoreCase)), next = index + direction;
+        if (index < 0 || next < 0 || next >= _metricOrder.Count) return;
+        (_metricOrder[index], _metricOrder[next]) = (_metricOrder[next], _metricOrder[index]); ApplyMetricOrder(); RefreshMetricVisibility(); SaveSettings();
+    }
     private void ApplyOverlayPosition()
     {
         if (!IsLoaded) return;
         UpdateLayout();
-        var area = SystemParameters.WorkArea;
+        var screen = GetSelectedMonitor();
+        var area = screen is null ? SystemParameters.WorkArea : GetWorkAreaInDips(screen);
         const double margin = 8;
         Left = _overlayPosition switch
         {
@@ -572,14 +603,90 @@ public partial class MainWindow : Window
             _ => area.Left + margin
         };
         Top = area.Top + margin;
-        foreach (var plugin in _loadedPlugins)
-            if (plugin.Instance is IOverlayPlacementProvider placement &&
-                placement.TryGetPosition(ActualWidth, ActualHeight, out var left, out var top))
-            {
-                Left = left;
-                Top = top;
-                break;
-            }
+    }
+
+    private Forms.Screen? GetSelectedMonitor()
+    {
+        var screens = Forms.Screen.AllScreens;
+        if (screens.Length == 0) return null;
+        return screens.FirstOrDefault(screen => screen.DeviceName.Equals(_selectedMonitor, StringComparison.OrdinalIgnoreCase))
+            ?? Forms.Screen.PrimaryScreen ?? screens[0];
+    }
+
+    private Rect GetWorkAreaInDips(Forms.Screen screen)
+    {
+        var bounds = screen.WorkingArea;
+        var matrix = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice ?? Matrix.Identity;
+        var topLeft = matrix.Transform(new System.Windows.Point(bounds.Left, bounds.Top));
+        var bottomRight = matrix.Transform(new System.Windows.Point(bounds.Right, bounds.Bottom));
+        return new Rect(topLeft, bottomRight);
+    }
+
+    private void ApplyOverlayScale()
+    {
+        OverlayBackground.LayoutTransform = Math.Abs(_overlayScale - 1.0) < 0.001
+            ? Transform.Identity
+            : new ScaleTransform(_overlayScale, _overlayScale);
+        UpdateLayout();
+        ApplyOverlayPosition();
+    }
+
+    private void ApplyMetricOrder()
+    {
+        var byName = new Dictionary<string, UIElement>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["FPS AVG"] = FpsAvg, ["FPS MAX"] = FpsMax, ["FPS MIN"] = FpsMin, ["CPU"] = CpuLoad,
+            ["CPU TEMP"] = CpuTemp, ["RAM"] = RamLoad, ["GPU"] = GpuLoad, ["GPU TEMP"] = GpuTemp
+        };
+        var separators = new UIElement[] { Sep1, Sep2, Sep3, Sep4, Sep5, Sep6, Sep7 };
+        foreach (var element in byName.Values.Concat(separators)) OverlayContent.Children.Remove(element);
+        int insertAt = OverlayContent.Children.Contains(AvailabilityDot) ? OverlayContent.Children.IndexOf(AvailabilityDot) + 1 : 0;
+        var order = CoreMetricOrder.Where(key => _metricOrder.Contains(key, StringComparer.OrdinalIgnoreCase)).ToList();
+        order.AddRange(CoreMetricOrder.Where(key => !order.Contains(key, StringComparer.OrdinalIgnoreCase)));
+        _metricOrder.Clear(); _metricOrder.AddRange(order);
+        for (int i = 0; i < order.Count; i++)
+        {
+            OverlayContent.Children.Insert(insertAt++, byName[order[i]]);
+            if (i < order.Count - 1) OverlayContent.Children.Insert(insertAt++, separators[i]);
+        }
+        UpdateOverlaySeparators();
+    }
+
+    private void UpdateOverlaySeparators()
+    {
+        var blocks = new Dictionary<string, TextBlock>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["FPS AVG"] = FpsAvg, ["FPS MAX"] = FpsMax, ["FPS MIN"] = FpsMin, ["CPU"] = CpuLoad,
+            ["CPU TEMP"] = CpuTemp, ["RAM"] = RamLoad, ["GPU"] = GpuLoad, ["GPU TEMP"] = GpuTemp
+        };
+        var separators = new TextBlock[] { Sep1, Sep2, Sep3, Sep4, Sep5, Sep6, Sep7 };
+        for (int i = 0; i < separators.Length; i++)
+        {
+            bool currentVisible = i < _metricOrder.Count && blocks[_metricOrder[i]].Visibility == Visibility.Visible;
+            bool laterVisible = _metricOrder.Skip(i + 1).Any(key => blocks[key].Visibility == Visibility.Visible);
+            separators[i].Visibility = currentVisible && laterVisible ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
+    private void UpdateHoverTransparency()
+    {
+        if (_hoverTransparency <= 0 || !GetCursorPos(out var cursor))
+        {
+            _lastHoverOpacity = 1;
+            BeginAnimation(OpacityProperty, null);
+            Opacity = 1;
+            return;
+        }
+        var topLeft = PointToScreen(new System.Windows.Point(0, 0));
+        var bottomRight = PointToScreen(new System.Windows.Point(ActualWidth, ActualHeight));
+        double dx = Math.Max(Math.Max(topLeft.X - cursor.X, 0), cursor.X - bottomRight.X);
+        double dy = Math.Max(Math.Max(topLeft.Y - cursor.Y, 0), cursor.Y - bottomRight.Y);
+        bool near = Math.Sqrt(dx * dx + dy * dy) <= Math.Max(0, _hoverRadius);
+        double target = near ? 1 - Math.Clamp(_hoverTransparency, 0, 100) / 100 : 1;
+        if (Math.Abs(target - _lastHoverOpacity) < 0.005) return;
+        _lastHoverOpacity = target;
+        BeginAnimation(OpacityProperty, new DoubleAnimation(target, TimeSpan.FromMilliseconds(110))
+        { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } }, HandoffBehavior.SnapshotAndReplace);
     }
 
     private void ShowIndicatorHelp()
@@ -615,10 +722,12 @@ public partial class MainWindow : Window
 
     private void LoadSettings()
     {
+        bool migrateLegacy = false;
         try
         {
-            if (!File.Exists(SettingsPath)) return;
+            if (!File.Exists(SettingsPath)) { LoadLegacyCustomization(); return; }
             using var doc = JsonDocument.Parse(File.ReadAllText(SettingsPath));
+            migrateLegacy = !doc.RootElement.TryGetProperty("OverlayScale", out _);
             if (doc.RootElement.TryGetProperty("Language", out var language) && language.GetString() is string savedLanguage &&
                 UiText.IsSupported(savedLanguage))
                 _uiLanguage = savedLanguage;
@@ -630,6 +739,12 @@ public partial class MainWindow : Window
                 byte.TryParse(hex.Substring(2,2), NumberStyles.HexNumber, null, out var g) &&
                 byte.TryParse(hex.Substring(4,2), NumberStyles.HexNumber, null, out var b))
                 _accentColor = System.Windows.Media.Color.FromRgb(r,g,b);
+            if (doc.RootElement.TryGetProperty("OverlayScale", out var scale)) _overlayScale = Math.Clamp(scale.GetDouble(), .65, 2.2);
+            if (doc.RootElement.TryGetProperty("HoverTransparency", out var fade)) _hoverTransparency = Math.Clamp(fade.GetDouble(), 0, 100);
+            if (doc.RootElement.TryGetProperty("HoverRadius", out var radius)) _hoverRadius = Math.Clamp(radius.GetDouble(), 0, 500);
+            if (doc.RootElement.TryGetProperty("SelectedMonitor", out var monitor)) _selectedMonitor = monitor.GetString() ?? "";
+            if (doc.RootElement.TryGetProperty("MetricOrder", out var order) && order.ValueKind == JsonValueKind.Array) { _metricOrder.Clear(); _metricOrder.AddRange(order.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => CoreMetricOrder.Contains(x, StringComparer.OrdinalIgnoreCase))); }
+            if (doc.RootElement.TryGetProperty("EnabledMetrics", out var enabled) && enabled.ValueKind == JsonValueKind.Array) { _enabledMetrics.Clear(); foreach (var item in enabled.EnumerateArray()) if (item.GetString() is string key && CoreMetricOrder.Contains(key, StringComparer.OrdinalIgnoreCase)) _enabledMetrics.Add(key); }
             if (doc.RootElement.TryGetProperty("Hotkeys", out var h))
                 foreach (var prop in h.EnumerateObject())
                     if (int.TryParse(prop.Name, out int id) && _hotkeys.ContainsKey(id) &&
@@ -641,15 +756,32 @@ public partial class MainWindow : Window
                     }
         }
         catch { }
+        if (migrateLegacy) LoadLegacyCustomization();
     }
 
+    private void LoadLegacyCustomization()
+    {
+        try
+        {
+            if (!File.Exists(LegacyCustomizationPath)) return;
+            using var doc = JsonDocument.Parse(File.ReadAllText(LegacyCustomizationPath)); var root = doc.RootElement;
+            if (root.TryGetProperty("Scale", out var scale)) _overlayScale = Math.Clamp(scale.GetDouble(), .65, 2.2);
+            if (root.TryGetProperty("HoverTransparency", out var fade)) _hoverTransparency = Math.Clamp(fade.GetDouble(), 0, 100);
+            if (root.TryGetProperty("HoverRadius", out var radius)) _hoverRadius = Math.Clamp(radius.GetDouble(), 0, 500);
+            if (root.TryGetProperty("Screen", out var screen) && screen.GetString() is string selected) _selectedMonitor = selected;
+            if (root.TryGetProperty("Order", out var order) && order.ValueKind == JsonValueKind.Array) { _metricOrder.Clear(); _metricOrder.AddRange(order.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => CoreMetricOrder.Contains(x, StringComparer.OrdinalIgnoreCase))); }
+            if (root.TryGetProperty("Enabled", out var enabled) && enabled.ValueKind == JsonValueKind.Array) { _enabledMetrics.Clear(); foreach (var item in enabled.EnumerateArray()) if (item.GetString() is string key && CoreMetricOrder.Contains(key, StringComparer.OrdinalIgnoreCase)) _enabledMetrics.Add(key); }
+            if (root.TryGetProperty("Color", out var color) && color.GetString() is string value && !string.IsNullOrWhiteSpace(value) && System.Windows.Media.ColorConverter.ConvertFromString(value) is System.Windows.Media.Color parsed) _accentColor = parsed;
+        }
+        catch { }
+    }
     private void SaveSettings()
     {
         try
         {
             var dir = Path.GetDirectoryName(SettingsPath)!;
             Directory.CreateDirectory(dir);
-            var data = new { Accent = $"{_accentColor.R:X2}{_accentColor.G:X2}{_accentColor.B:X2}", Position = _overlayPosition, Language = _uiLanguage, Hotkeys = _hotkeys };
+            var data = new { Accent = $"{_accentColor.R:X2}{_accentColor.G:X2}{_accentColor.B:X2}", Position = _overlayPosition, Language = _uiLanguage, Hotkeys = _hotkeys, OverlayScale = _overlayScale, HoverTransparency = _hoverTransparency, HoverRadius = _hoverRadius, SelectedMonitor = _selectedMonitor, MetricOrder = _metricOrder, EnabledMetrics = _enabledMetrics };
             File.WriteAllText(SettingsPath, JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true }));
         }
         catch { }

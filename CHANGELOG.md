@@ -2,6 +2,11 @@
 
 This file records the published versions of PerformanceOverlay and the changes included in each release.
 
+## [1.3.0] - 2026-11-22
+
+- Move all Customizable Overlay controls into the core settings window, including accent color, scale, hover fade and distance, monitor selection, metric visibility and ordering.
+- Import existing Customizable Overlay settings into core settings and stop loading the retired plugin to prevent duplicate behavior.
+- Replace the custom settings sidebar with a standard resizable window and tabs.
 ## [1.2.0] - 2026-11-15
 
 - Rework the settings window with responsive sizing and functional General, Plugins, Shortcuts and Help pages.
